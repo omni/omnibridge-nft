@@ -22,10 +22,10 @@ if [ ! -f ./deploy/.env ]; then
   exit 3
 fi
 
-docker-compose images bridge-contracts >/dev/null 2>/dev/null
+docker-compose images nft-omnibridge-contracts >/dev/null 2>/dev/null
 if [ "$?" == "1" ]; then
-  echo "Docker image 'bridge-contracts' not found"
+  echo "Docker image 'nft-omnibridge-contracts' not found"
   exit 2
 fi
 
-docker-compose run bridge-contracts deploy.sh "$@"
+docker-compose run nft-omnibridge-contracts deploy.sh "$@"
