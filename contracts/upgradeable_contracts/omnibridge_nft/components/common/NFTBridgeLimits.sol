@@ -16,7 +16,9 @@ abstract contract NFTBridgeLimits is Ownable {
      * @param _token address of the token contract.
      * @return true, if token was already bridged.
      */
-    function isTokenRegistered(address _token) public view virtual returns (bool);
+    function isTokenRegistered(address _token) public view returns (bool) {
+        return boolStorage[keccak256(abi.encodePacked("tokenRegistered", _token))];
+    }
 
     /**
      * @dev Retrieves the total spent amount for particular token during specific day.
@@ -141,5 +143,13 @@ abstract contract NFTBridgeLimits is Ownable {
     function _setExecutionDailyLimit(address _token, uint256 _dailyLimit) internal {
         uintStorage[keccak256(abi.encodePacked("executionDailyLimit", _token))] = _dailyLimit;
         emit ExecutionDailyLimitChanged(_token, _dailyLimit);
+    }
+
+    /**
+     * @dev Internal function for marking token as registered.
+     * @param _token address of the token contract.
+     */
+    function _setTokenIsRegistered(address _token) internal {
+        boolStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] = true;
     }
 }

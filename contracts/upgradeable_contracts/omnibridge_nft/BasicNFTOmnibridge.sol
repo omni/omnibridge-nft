@@ -2,6 +2,7 @@ pragma solidity 0.7.5;
 
 import "../Initializable.sol";
 import "../Upgradeable.sol";
+import "../../interfaces/INFTReceiver.sol";
 import "./components/common/BridgeOperationsStorage.sol";
 import "./components/common/FailedMessagesProcessor.sol";
 import "./components/common/NFTBridgeLimits.sol";
@@ -34,49 +35,6 @@ abstract contract BasicNFTOmnibridge is
     FailedMessagesProcessor
 {
     /**
-     * @dev Stores the initial parameters of the mediator.
-     * @param _bridgeContract the address of the AMB bridge contract.
-     * @param _mediatorContract the address of the mediator contract on the other network.
-     * @param _dailyLimit daily limit for outgoing transfers
-     * @param _executionDailyLimit daily limit for ingoing bridge operations
-     * @param _requestGasLimit the gas limit for the message execution.
-     * @param _owner address of the owner of the mediator contract.
-     * @param _image address of the ERC721 token image.
-     */
-    function initialize(
-        address _bridgeContract,
-        address _mediatorContract,
-        uint256 _dailyLimit,
-        uint256 _executionDailyLimit,
-        uint256 _requestGasLimit,
-        address _owner,
-        address _image
-    ) external onlyRelevantSender returns (bool) {
-        require(!isInitialized());
-
-        _setBridgeContract(_bridgeContract);
-        _setMediatorContractOnOtherSide(_mediatorContract);
-        _setDailyLimit(address(0), _dailyLimit);
-        _setExecutionDailyLimit(address(0), _executionDailyLimit);
-        _setRequestGasLimit(_requestGasLimit);
-        _setOwner(_owner);
-        _setTokenImage(_image);
-
-        setInitialize();
-
-        return isInitialized();
-    }
-
-    /**
-     * @dev Checks if specified token was already bridged at least once.
-     * @param _token address of the token contract.
-     * @return true, if token was already bridged.
-     */
-    function isTokenRegistered(address _token) public view override returns (bool) {
-        return isRegisteredAsNativeToken(_token) || nativeTokenAddress(_token) != address(0);
-    }
-
-    /**
      * @dev Handles the bridged token for the first time, includes deployment of new ERC721TokenProxy contract.
      * @param _token address of the native ERC721 token on the other side.
      * @param _name name of the native token, name suffix will be appended, if empty, symbol will be used instead.
@@ -93,28 +51,42 @@ abstract contract BasicNFTOmnibridge is
         uint256 _tokenId,
         string calldata _tokenURI
     ) external onlyMediator {
-        address bridgedToken = bridgedTokenAddress(_token);
-        if (bridgedToken == address(0)) {
-            string memory name = _name;
-            string memory symbol = _symbol;
-            if (bytes(name).length == 0) {
-                require(bytes(symbol).length > 0);
-                name = symbol;
-            } else if (bytes(symbol).length == 0) {
-                symbol = name;
-            }
-            bridgedToken = address(new ERC721TokenProxy(tokenImage(), _transformName(name), symbol, address(this)));
-            _setTokenAddressPair(_token, bridgedToken);
-            _initToken(bridgedToken);
-        }
+        address bridgedToken = _getBridgedTokenOrDeploy(_token, _name, _symbol);
 
         _handleTokens(bridgedToken, false, _recipient, _tokenId);
         _setTokenURI(bridgedToken, _tokenId, _tokenURI);
     }
 
     /**
+     * @dev Handles the bridged tokens for the first time, includes deployment of new TokenProxy contract.
+     * Executes the callback on the receiver.
+     * @param _token address of the native ERC721 token on the other side.
+     * @param _name name of the native token, name suffix will be appended, if empty, symbol will be used instead.
+     * @param _symbol symbol of the bridged token, if empty, name will be used instead.
+     * @param _recipient address that will receive the tokens.
+     * @param _tokenId unique id of the bridged token.
+     * @param _tokenURI URI for the bridged token instance.
+     * @param _data additional data passed from the other chain.
+     */
+    function deployAndHandleBridgedNFTAndCall(
+        address _token,
+        string calldata _name,
+        string calldata _symbol,
+        address _recipient,
+        uint256 _tokenId,
+        string calldata _tokenURI,
+        bytes calldata _data
+    ) external onlyMediator {
+        address bridgedToken = _getBridgedTokenOrDeploy(_token, _name, _symbol);
+
+        _handleTokens(bridgedToken, false, _recipient, _tokenId);
+        _setTokenURI(bridgedToken, _tokenId, _tokenURI);
+
+        _receiverCallback(_recipient, bridgedToken, _tokenId, _data);
+    }
+
+    /**
      * @dev Handles the bridged token for the already registered token pair.
-     * Checks that the bridged token is inside the execution limits and invokes the Mint accordingly.
      * @param _token address of the native ERC721 token on the other side.
      * @param _recipient address that will receive the tokens.
      * @param _tokenId unique id of the bridged token.
@@ -133,6 +105,30 @@ abstract contract BasicNFTOmnibridge is
     }
 
     /**
+     * @dev Handles the bridged token for the already registered token pair.
+     * Executes the callback on the receiver.
+     * @param _token address of the native ERC721 token on the other side.
+     * @param _recipient address that will receive the tokens.
+     * @param _tokenId unique id of the bridged token.
+     * @param _tokenURI URI for the bridged token instance.
+     * @param _data additional transfer data passed from the other side.
+     */
+    function handleBridgedNFTAndCall(
+        address _token,
+        address _recipient,
+        uint256 _tokenId,
+        string calldata _tokenURI,
+        bytes memory _data
+    ) external onlyMediator {
+        address token = bridgedTokenAddress(_token);
+
+        _handleTokens(token, false, _recipient, _tokenId);
+        _setTokenURI(token, _tokenId, _tokenURI);
+
+        _receiverCallback(_recipient, token, _tokenId, _data);
+    }
+
+    /**
      * @dev Handles the bridged token that are native to this chain.
      * Checks that the bridged token is inside the execution limits and invokes the Unlock accordingly.
      * @param _token address of the native ERC721 token contract.
@@ -144,9 +140,39 @@ abstract contract BasicNFTOmnibridge is
         address _recipient,
         uint256 _tokenId
     ) external onlyMediator {
-        require(isRegisteredAsNativeToken(_token));
+        _ackBridgedTokenDeploy(_token);
 
         _handleTokens(_token, true, _recipient, _tokenId);
+    }
+
+    /**
+     * @dev Handles the bridged tokens that are native to this chain.
+     * Executes the callback on the receiver.
+     * @param _token native ERC20 token.
+     * @param _recipient address that will receive the tokens.
+     * @param _tokenId unique id of the bridged token.
+     * @param _data additional transfer data passed from the other side.
+     */
+    function handleNativeNFTAndCall(
+        address _token,
+        address _recipient,
+        uint256 _tokenId,
+        bytes memory _data
+    ) external onlyMediator {
+        _ackBridgedTokenDeploy(_token);
+
+        _handleTokens(_token, true, _recipient, _tokenId);
+
+        _receiverCallback(_recipient, _token, _tokenId, _data);
+    }
+
+    /**
+     * @dev Checks if a given token is a bridged token that is native to this side of the bridge.
+     * @param _token address of token contract.
+     * @return message id of the send message.
+     */
+    function isRegisteredAsNativeToken(address _token) public view returns (bool) {
+        return isTokenRegistered(_token) && nativeTokenAddress(_token) == address(0);
     }
 
     /**
@@ -183,11 +209,9 @@ abstract contract BasicNFTOmnibridge is
 
         _setMediatorOwns(_token, _tokenId, true);
 
-        bytes memory data = abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId);
-
-        bytes32 _messageId =
-            bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
-        _recordBridgeOperation(false, _messageId, _token, _receiver, _tokenId);
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenId, new bytes(0));
+        bytes32 _messageId = _passMessage(data, true);
+        _recordBridgeOperation(_messageId, _token, _receiver, _tokenId);
     }
 
     /**
@@ -196,82 +220,113 @@ abstract contract BasicNFTOmnibridge is
      * @param _from address of token sender.
      * @param _receiver address of token receiver on the other side.
      * @param _tokenId unique id of the bridged token.
+     * @param _data additional transfer data to be used on the other side.
      */
     function bridgeSpecificActionsOnTokenTransfer(
         address _token,
         address _from,
         address _receiver,
-        uint256 _tokenId
+        uint256 _tokenId,
+        bytes memory _data
     ) internal override {
         require(_receiver != address(0) && _receiver != mediatorContractOnOtherSide());
 
-        bool isKnownToken = isTokenRegistered(_token);
-        bool isNativeToken = !isKnownToken || isRegisteredAsNativeToken(_token);
-        bytes memory data;
+        if (!isTokenRegistered(_token)) {
+            // require(IERC721(_token).ownerOf(_tokenId) == address(this));
+            _initToken(_token);
+        }
 
-        if (!isKnownToken) {
-            require(IERC721(_token).ownerOf(_tokenId) == address(this));
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenId, _data);
+        bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
+
+        _recordBridgeOperation(_messageId, _token, _from, _tokenId);
+    }
+
+    /**
+     * @dev Constructs the message to be sent to the other side. Burns/locks bridged token.
+     * @param _token bridged token address.
+     * @param _receiver address of the tokens receiver on the other side.
+     * @param _tokenId unique id of the bridged token.
+     * @param _data additional transfer data passed from the other side.
+     */
+    function _prepareMessage(
+        address _token,
+        address _receiver,
+        uint256 _tokenId,
+        bytes memory _data
+    ) internal returns (bytes memory) {
+        address nativeToken = nativeTokenAddress(_token);
+        bool withData = _data.length > 0 || msg.sig == this.relayTokenAndCall.selector;
+
+        // process token is native with respect to this side of the bridge
+        if (nativeToken == address(0)) {
+            _setMediatorOwns(_token, _tokenId, true);
+
+            string memory tokenURI = _readTokenURI(_token, _tokenId);
+
+            // process token which bridged alternative was already ACKed to be deployed
+            if (isBridgedTokenDeployAcknowledged(_token)) {
+                return
+                    withData
+                        ? abi.encodeWithSelector(
+                            this.handleBridgedNFTAndCall.selector,
+                            _token,
+                            _receiver,
+                            _tokenId,
+                            tokenURI,
+                            _data
+                        )
+                        : abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId, tokenURI);
+            }
 
             string memory name = _readName(_token);
             string memory symbol = _readSymbol(_token);
-            string memory tokenURI = _readTokenURI(_token, _tokenId);
 
             require(bytes(name).length > 0 || bytes(symbol).length > 0);
-            _initToken(_token);
 
-            data = abi.encodeWithSelector(
-                this.deployAndHandleBridgedNFT.selector,
-                _token,
-                name,
-                symbol,
-                _receiver,
-                _tokenId,
-                tokenURI
-            );
-        } else if (isNativeToken) {
-            string memory tokenURI = _readTokenURI(_token, _tokenId);
-            data = abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId, tokenURI);
-        } else {
-            IBurnableMintableERC721Token(_token).burn(_tokenId);
-            data = abi.encodeWithSelector(
-                this.handleNativeNFT.selector,
-                nativeTokenAddress(_token),
-                _receiver,
-                _tokenId
-            );
+            return
+                withData
+                    ? abi.encodeWithSelector(
+                        this.deployAndHandleBridgedNFTAndCall.selector,
+                        _token,
+                        name,
+                        symbol,
+                        _receiver,
+                        _tokenId,
+                        tokenURI,
+                        _data
+                    )
+                    : abi.encodeWithSelector(
+                        this.deployAndHandleBridgedNFT.selector,
+                        _token,
+                        name,
+                        symbol,
+                        _receiver,
+                        _tokenId,
+                        tokenURI
+                    );
         }
 
-        if (isNativeToken) {
-            _setMediatorOwns(_token, _tokenId, true);
-        }
-
-        bytes32 _messageId =
-            bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
-
-        _recordBridgeOperation(!isKnownToken, _messageId, _token, _from, _tokenId);
+        // process already known token that is bridged from other chain
+        IBurnableMintableERC721Token(_token).burn(_tokenId);
+        return
+            withData
+                ? abi.encodeWithSelector(this.handleNativeNFTAndCall.selector, nativeToken, _receiver, _tokenId, _data)
+                : abi.encodeWithSelector(this.handleNativeNFT.selector, nativeToken, _receiver, _tokenId);
     }
 
     /**
      * @dev Unlock/Mint back the bridged token that was bridged to the other network but failed.
-     * @param _messageId id of the failed message.
      * @param _token address that bridged token contract.
      * @param _recipient address that will receive the tokens.
      * @param _tokenId unique id of the bridged token.
      */
     function executeActionOnFixedTokens(
-        bytes32 _messageId,
         address _token,
         address _recipient,
         uint256 _tokenId
     ) internal override {
-        bytes32 registrationMessageId = tokenRegistrationMessageId(_token);
-        if (_messageId == registrationMessageId) {
-            delete uintStorage[keccak256(abi.encodePacked("dailyLimit", _token))];
-            delete uintStorage[keccak256(abi.encodePacked("executionDailyLimit", _token))];
-            _setTokenRegistrationMessageId(_token, bytes32(0));
-        }
-
-        _releaseToken(_token, registrationMessageId != bytes32(0), _recipient, _tokenId);
+        _releaseToken(_token, nativeTokenAddress(_token) == address(0), _recipient, _tokenId);
     }
 
     /**
@@ -336,14 +391,12 @@ abstract contract BasicNFTOmnibridge is
     /**
      * @dev Internal function for recording bridge operation for further usage.
      * Recorded information is used for fixing failed requests on the other side.
-     * @param _register true, if native token is bridged for the first time.
      * @param _messageId id of the sent message.
      * @param _token bridged token address.
      * @param _sender address of the tokens sender.
      * @param _tokenId unique id of the bridged token.
      */
     function _recordBridgeOperation(
-        bool _register,
         bytes32 _messageId,
         address _token,
         address _sender,
@@ -356,10 +409,6 @@ abstract contract BasicNFTOmnibridge is
         setMessageRecipient(_messageId, _sender);
         setMessageValue(_messageId, _tokenId);
 
-        if (_register) {
-            _setTokenRegistrationMessageId(_token, _messageId);
-        }
-
         emit TokensBridgingInitiated(_token, _sender, _tokenId, _messageId);
     }
 
@@ -368,8 +417,71 @@ abstract contract BasicNFTOmnibridge is
      * @param _token address of the token contract.
      */
     function _initToken(address _token) internal {
+        _setTokenIsRegistered(_token);
         _setDailyLimit(_token, dailyLimit(address(0)));
         _setExecutionDailyLimit(_token, executionDailyLimit(address(0)));
+    }
+
+    /**
+     * Internal function for getting address of the bridged token. Deploys new token if necessary.
+     * @param _token address of the token contract on the other side of the bridge.
+     * @param _name name of the native token, name suffix will be appended, if empty, symbol will be used instead.
+     * @param _symbol symbol of the bridged token, if empty, name will be used instead.
+     */
+    function _getBridgedTokenOrDeploy(
+        address _token,
+        string calldata _name,
+        string calldata _symbol
+    ) internal returns (address) {
+        address bridgedToken = bridgedTokenAddress(_token);
+        if (bridgedToken == address(0)) {
+            string memory name = _name;
+            string memory symbol = _symbol;
+            if (bytes(name).length == 0) {
+                require(bytes(symbol).length > 0);
+                name = symbol;
+            } else if (bytes(symbol).length == 0) {
+                symbol = name;
+            }
+            bridgedToken = address(new ERC721TokenProxy(tokenImage(), _transformName(name), symbol, address(this)));
+            _setTokenAddressPair(_token, bridgedToken);
+            _initToken(bridgedToken);
+        }
+        return bridgedToken;
+    }
+
+    /**
+     * Notifies receiving contract about the completed bridging operation.
+     * @param _recipient address of the tokens receiver.
+     * @param _token address of the bridged token.
+     * @param _tokenId unique id of the bridged token.
+     * @param _data additional data passed to the callback.
+     */
+    function _receiverCallback(
+        address _recipient,
+        address _token,
+        uint256 _tokenId,
+        bytes memory _data
+    ) internal {
+        if (Address.isContract(_recipient)) {
+            _recipient.call(abi.encodeWithSelector(INFTReceiver.onTokenBridged.selector, _token, _tokenId, _data));
+        }
+    }
+
+    /**
+     * @dev Checks if bridge operation is allowed to use oracle driven lane.
+     * @param _token address of the token contract on the foreign side of the bridge.
+     * @param _sender address of the tokens sender on the home side of the bridge.
+     * @param _receiver address of the tokens receiver on the foreign side of the bridge.
+     * @return true, if message can be forwarded to the oracle-driven lane.
+     */
+    function _isOracleDrivenLaneAllowed(
+        address _token,
+        address _sender,
+        address _receiver
+    ) internal view virtual returns (bool) {
+        (_token, _sender, _receiver);
+        return true;
     }
 
     function _transformName(string memory _name) internal pure virtual returns (string memory);

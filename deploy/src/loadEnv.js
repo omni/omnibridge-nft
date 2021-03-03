@@ -13,9 +13,11 @@ const validateAddress = (address) => {
 
   throw new Error(`Invalid address: ${address}`)
 }
-const validateOptionalAddress = (address) => (address ? validateAddress(address) : '')
+const validateOptionalAddress = (address) => (address && address !== '0x' ? validateAddress(address) : '')
+const validateOptionalAddressOrFalse = (address) => (address === 'false' ? false : validateOptionalAddress(address))
 const addressValidator = envalid.makeValidator(validateAddress)
 const optionalAddressValidator = envalid.makeValidator(validateOptionalAddress)
+const optionalAddressOrFalseValidator = envalid.makeValidator(validateOptionalAddressOrFalse)
 
 const { BRIDGE_MODE } = process.env
 
@@ -46,6 +48,7 @@ switch (BRIDGE_MODE) {
       HOME_DAILY_LIMIT: bigNumValidator(),
       HOME_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       FOREIGN_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
+      HOME_FORWARDING_RULES_MANAGER: optionalAddressOrFalseValidator(),
     }
     break
   default:

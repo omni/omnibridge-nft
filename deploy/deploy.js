@@ -18,13 +18,15 @@ async function deployOmnibridgeNFT() {
   const initializeHome = require('./src/omnibridge_nft/initializeHome')
   const initializeForeign = require('./src/omnibridge_nft/initializeForeign')
   await preDeploy()
-  const { homeBridgeMediator, tokenImage: homeTokenImage } = await deployHome()
+  const { homeBridgeMediator, tokenImage: homeTokenImage, gasLimitManager, forwardingRulesManager } = await deployHome()
   const { foreignBridgeMediator, tokenImage: foreignTokenImage } = await deployForeign()
 
   await initializeHome({
     homeBridge: homeBridgeMediator.address,
     foreignBridge: foreignBridgeMediator.address,
     tokenImage: homeTokenImage.address,
+    gasLimitManager: gasLimitManager.address,
+    forwardingRulesManager: forwardingRulesManager.address,
   })
 
   await initializeForeign({

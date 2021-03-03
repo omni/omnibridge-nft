@@ -7,30 +7,49 @@ const {
   HOME_DAILY_LIMIT,
   FOREIGN_DAILY_LIMIT,
   HOME_AMB_BRIDGE,
-  HOME_MEDIATOR_REQUEST_GAS_LIMIT,
   HOME_BRIDGE_OWNER,
   HOME_UPGRADEABLE_ADMIN,
 } = require('../loadEnv')
 
 async function initializeMediator({
   contract,
-  params: { bridgeContract, mediatorContract, dailyLimit, executionDailyLimit, requestGasLimit, owner, tokenImage },
+  params: {
+    bridgeContract,
+    mediatorContract,
+    dailyLimit,
+    executionDailyLimit,
+    owner,
+    tokenImage,
+    gasLimitManager,
+    forwardingRulesManager,
+  },
 }) {
   console.log(`
     AMB contract: ${bridgeContract},
     Mediator contract: ${mediatorContract},
     DAILY_LIMIT : ${dailyLimit} which is ${fromWei(dailyLimit)} in eth,
     EXECUTION_DAILY_LIMIT : ${executionDailyLimit} which is ${fromWei(executionDailyLimit)} in eth,
-    MEDIATOR_REQUEST_GAS_LIMIT : ${requestGasLimit},
     OWNER: ${owner},
-    TOKEN_IMAGE: ${tokenImage}`)
+    TOKEN_IMAGE: ${tokenImage},
+    GAS_LIMIT_MANAGER: ${gasLimitManager},
+    FORWARDING_RULES_MANAGER: ${forwardingRulesManager}
+    `)
 
   return contract.methods
-    .initialize(bridgeContract, mediatorContract, dailyLimit, executionDailyLimit, requestGasLimit, owner, tokenImage)
+    .initialize(
+      bridgeContract,
+      mediatorContract,
+      dailyLimit,
+      executionDailyLimit,
+      gasLimitManager,
+      owner,
+      tokenImage,
+      forwardingRulesManager
+    )
     .encodeABI()
 }
 
-async function initialize({ homeBridge, foreignBridge, tokenImage }) {
+async function initialize({ homeBridge, foreignBridge, tokenImage, gasLimitManager, forwardingRulesManager }) {
   let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
   const mediatorContract = new web3Home.eth.Contract(HomeNFTOmnibridge.abi, homeBridge)
 
@@ -41,7 +60,8 @@ async function initialize({ homeBridge, foreignBridge, tokenImage }) {
     params: {
       bridgeContract: HOME_AMB_BRIDGE,
       mediatorContract: foreignBridge,
-      requestGasLimit: HOME_MEDIATOR_REQUEST_GAS_LIMIT,
+      gasLimitManager,
+      forwardingRulesManager,
       owner: HOME_BRIDGE_OWNER,
       dailyLimit: HOME_DAILY_LIMIT,
       executionDailyLimit: FOREIGN_DAILY_LIMIT,
