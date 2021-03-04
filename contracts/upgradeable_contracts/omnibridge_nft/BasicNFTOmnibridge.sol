@@ -34,40 +34,6 @@ abstract contract BasicNFTOmnibridge is
     FailedMessagesProcessor
 {
     /**
-     * @dev Stores the initial parameters of the mediator.
-     * @param _bridgeContract the address of the AMB bridge contract.
-     * @param _mediatorContract the address of the mediator contract on the other network.
-     * @param _dailyLimit daily limit for outgoing transfers
-     * @param _executionDailyLimit daily limit for ingoing bridge operations
-     * @param _requestGasLimit the gas limit for the message execution.
-     * @param _owner address of the owner of the mediator contract.
-     * @param _image address of the ERC721 token image.
-     */
-    function initialize(
-        address _bridgeContract,
-        address _mediatorContract,
-        uint256 _dailyLimit,
-        uint256 _executionDailyLimit,
-        uint256 _requestGasLimit,
-        address _owner,
-        address _image
-    ) external onlyRelevantSender returns (bool) {
-        require(!isInitialized());
-
-        _setBridgeContract(_bridgeContract);
-        _setMediatorContractOnOtherSide(_mediatorContract);
-        _setDailyLimit(address(0), _dailyLimit);
-        _setExecutionDailyLimit(address(0), _executionDailyLimit);
-        _setRequestGasLimit(_requestGasLimit);
-        _setOwner(_owner);
-        _setTokenImage(_image);
-
-        setInitialize();
-
-        return isInitialized();
-    }
-
-    /**
      * @dev Checks if specified token was already bridged at least once.
      * @param _token address of the token contract.
      * @return true, if token was already bridged.
@@ -185,8 +151,7 @@ abstract contract BasicNFTOmnibridge is
 
         bytes memory data = abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId);
 
-        bytes32 _messageId =
-            bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
+        bytes32 _messageId = _passMessage(data, true);
         _recordBridgeOperation(false, _messageId, _token, _receiver, _tokenId);
     }
 
@@ -245,8 +210,7 @@ abstract contract BasicNFTOmnibridge is
             _setMediatorOwns(_token, _tokenId, true);
         }
 
-        bytes32 _messageId =
-            bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
+        bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
 
         _recordBridgeOperation(!isKnownToken, _messageId, _token, _from, _tokenId);
     }
@@ -370,6 +334,22 @@ abstract contract BasicNFTOmnibridge is
     function _initToken(address _token) internal {
         _setDailyLimit(_token, dailyLimit(address(0)));
         _setExecutionDailyLimit(_token, executionDailyLimit(address(0)));
+    }
+
+    /**
+     * @dev Checks if bridge operation is allowed to use oracle driven lane.
+     * @param _token address of the token contract on the foreign side of the bridge.
+     * @param _sender address of the tokens sender on the home side of the bridge.
+     * @param _receiver address of the tokens receiver on the foreign side of the bridge.
+     * @return true, if message can be forwarded to the oracle-driven lane.
+     */
+    function _isOracleDrivenLaneAllowed(
+        address _token,
+        address _sender,
+        address _receiver
+    ) internal view virtual returns (bool) {
+        (_token, _sender, _receiver);
+        return true;
     }
 
     function _transformName(string memory _name) internal pure virtual returns (string memory);

@@ -20,9 +20,8 @@ abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsS
         require(bridgeContract().failedMessageReceiver(_messageId) == address(this));
         require(bridgeContract().failedMessageSender(_messageId) == mediatorContractOnOtherSide());
 
-        bytes4 methodSelector = this.fixFailedMessage.selector;
-        bytes memory data = abi.encodeWithSelector(methodSelector, _messageId);
-        bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
+        bytes memory data = abi.encodeWithSelector(this.fixFailedMessage.selector, _messageId);
+        _passMessage(data, true);
     }
 
     /**

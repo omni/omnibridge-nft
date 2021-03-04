@@ -3,6 +3,7 @@ const ForeignNFTOmnibridge = artifacts.require('ForeignNFTOmnibridge')
 const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
+const MultiTokenForwardingRulesManager = artifacts.require('MultiTokenForwardingRulesManager')
 
 const { expect } = require('chai')
 const { getEvents, ether, expectEventInLogs } = require('../helpers/helpers')
@@ -62,6 +63,9 @@ function runTests(accounts, isHome) {
       opts.owner || owner,
       opts.tokenImage || tokenImage.address,
     ]
+    if (isHome) {
+      args.push(opts.forwardingRulesManager || ZERO_ADDRESS)
+    }
     return contract.initialize(...args)
   }
 
@@ -139,6 +143,11 @@ function runTests(accounts, isHome) {
       // When
       // not valid bridge address
       await initialize({ ambContract: ZERO_ADDRESS }).should.be.rejected
+
+      if (isHome) {
+        // forwarding rules manager is not a contract
+        await initialize({ forwardingRulesManager: owner }).should.be.rejected
+      }
 
       // maxGasPerTx > bridge maxGasPerTx
       await initialize({ requestGasLimit: ether('1') }).should.be.rejected
@@ -923,6 +932,92 @@ function runTests(accounts, isHome) {
         })
       })
     })
+
+    if (isHome) {
+      describe('oracle driven lane permissions', () => {
+        let manager
+        beforeEach(async () => {
+          manager = await MultiTokenForwardingRulesManager.new(owner)
+          expect(await manager.owner()).to.be.equal(owner)
+        })
+
+        it('should allow to update manager address', async () => {
+          await contract.setForwardingRulesManager(manager.address, { from: user }).should.be.rejected
+          await contract.setForwardingRulesManager(manager.address, { from: owner }).should.be.fulfilled
+
+          expect(await contract.forwardingRulesManager()).to.be.equal(manager.address)
+
+          const otherManager = await MultiTokenForwardingRulesManager.new(contract.address)
+          await contract.setForwardingRulesManager(otherManager.address).should.be.fulfilled
+
+          expect(await contract.forwardingRulesManager()).to.be.equal(otherManager.address)
+
+          await contract.setForwardingRulesManager(owner).should.be.rejected
+          await contract.setForwardingRulesManager(ZERO_ADDRESS).should.be.fulfilled
+
+          expect(await contract.forwardingRulesManager()).to.be.equal(ZERO_ADDRESS)
+        })
+
+        it('should allow to set/update lane permissions', async () => {
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('0')
+
+          await manager.setTokenForwardingRule(token.address, true, { from: user }).should.be.rejected
+          await manager.setTokenForwardingRule(token.address, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
+
+          await manager.setSenderExceptionForTokenForwardingRule(token.address, user, true, { from: user }).should.be
+            .rejected
+          await manager.setSenderExceptionForTokenForwardingRule(token.address, user, true, { from: owner }).should.be
+            .fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('1')
+          expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('-1')
+
+          await manager.setSenderExceptionForTokenForwardingRule(token.address, user, false, { from: owner }).should.be
+            .fulfilled
+          await manager.setReceiverExceptionForTokenForwardingRule(token.address, user, true, { from: user }).should.be
+            .rejected
+          await manager.setReceiverExceptionForTokenForwardingRule(token.address, user, true, { from: owner }).should.be
+            .fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
+
+          await manager.setTokenForwardingRule(token.address, false, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('0')
+
+          await manager.setSenderForwardingRule(user2, true, { from: user }).should.be.rejected
+          await manager.setSenderForwardingRule(user2, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('-1')
+
+          await manager.setReceiverForwardingRule(user2, true, { from: user }).should.be.rejected
+          await manager.setReceiverForwardingRule(user2, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
+        })
+
+        it('should send a message to the manual lane', async () => {
+          const tokenId1 = await mintNewNFT()
+          const tokenId2 = await mintNewNFT()
+          const tokenId3 = await mintNewNFT()
+
+          await sendFunctions[0](tokenId1).should.be.fulfilled
+          await contract.setForwardingRulesManager(manager.address, { from: owner }).should.be.fulfilled
+          await sendFunctions[1](tokenId2).should.be.fulfilled
+          await manager.setTokenForwardingRule(token.address, true, { from: owner }).should.be.fulfilled
+          await sendFunctions[2](tokenId3).should.be.fulfilled
+
+          const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+          expect(events.length).to.be.equal(3)
+          expect(events[0].returnValues.dataType).to.be.bignumber.equal('0')
+          expect(events[1].returnValues.dataType).to.be.bignumber.equal('0')
+          expect(events[2].returnValues.dataType).to.be.bignumber.equal('128')
+        })
+      })
+    }
   })
 }
 
