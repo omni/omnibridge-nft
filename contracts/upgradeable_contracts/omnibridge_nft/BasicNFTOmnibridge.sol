@@ -7,6 +7,7 @@ import "./components/common/FailedMessagesProcessor.sol";
 import "./components/common/NFTBridgeLimits.sol";
 import "./components/common/ERC721Relayer.sol";
 import "./components/common/NFTOmnibridgeInfo.sol";
+import "./components/native/NativeTokensRegistry.sol";
 import "./components/native/ERC721Reader.sol";
 import "./components/bridged/BridgedTokensRegistry.sol";
 import "./components/bridged/TokenImageStorage.sol";
@@ -23,6 +24,7 @@ abstract contract BasicNFTOmnibridge is
     Upgradeable,
     BridgeOperationsStorage,
     BridgedTokensRegistry,
+    NativeTokensRegistry,
     NFTOmnibridgeInfo,
     NFTBridgeLimits,
     ERC721Reader,
@@ -63,6 +65,15 @@ abstract contract BasicNFTOmnibridge is
         setInitialize();
 
         return isInitialized();
+    }
+
+    /**
+     * @dev Checks if specified token was already bridged at least once and it is registered in the Omnibridge.
+     * @param _token address of the token contract.
+     * @return true, if token was already bridged.
+     */
+    function isTokenRegistered(address _token) public view override returns (bool) {
+        return isRegisteredAsNativeToken(_token) || nativeTokenAddress(_token) != address(0);
     }
 
     /**
@@ -133,7 +144,7 @@ abstract contract BasicNFTOmnibridge is
         address _recipient,
         uint256 _tokenId
     ) external onlyMediator {
-        _setTokenIsRegistered(_token, REGISTERED_AND_DEPLOYED);
+        _setNativeTokenIsRegistered(_token, REGISTERED_AND_DEPLOYED);
 
         _handleTokens(_token, true, _recipient, _tokenId);
     }
@@ -193,6 +204,7 @@ abstract contract BasicNFTOmnibridge is
         if (!isTokenRegistered(_token)) {
             require(IERC721(_token).ownerOf(_tokenId) == address(this));
             _initToken(_token);
+            _setNativeTokenIsRegistered(_token, REGISTERED);
         }
 
         bytes memory data = _prepareMessage(_token, _receiver, _tokenId);
@@ -353,7 +365,6 @@ abstract contract BasicNFTOmnibridge is
      * @param _token address of the token contract.
      */
     function _initToken(address _token) internal {
-        _setTokenIsRegistered(_token, REGISTERED);
         _setDailyLimit(_token, dailyLimit(address(0)));
         _setExecutionDailyLimit(_token, executionDailyLimit(address(0)));
     }

@@ -1,12 +1,12 @@
 pragma solidity 0.7.5;
 
-import "../bridged/BridgedTokensRegistry.sol";
+import "../../../../upgradeability/EternalStorage.sol";
 
 /**
- * @title TokenRegistrar
- * @dev Functionality for registering new tokens.
+ * @title NativeTokensRegistry
+ * @dev Functionality for keeping track of registered native tokens.
  */
-contract TokenRegistrar is BridgedTokensRegistry {
+contract NativeTokensRegistry is EternalStorage {
     uint256 internal constant REGISTERED = 1;
     uint256 internal constant REGISTERED_AND_DEPLOYED = 2;
 
@@ -20,29 +20,22 @@ contract TokenRegistrar is BridgedTokensRegistry {
     }
 
     /**
-     * @dev Checks if specified token was already bridged at least once and it is registered in the Omnibridge.
-     * @param _token address of the token contract.
-     * @return true, if token was already bridged.
-     */
-    function isTokenRegistered(address _token) public view returns (bool) {
-        return uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] > 0;
-    }
-
-    /**
      * @dev Checks if a given token is a bridged token that is native to this side of the bridge.
      * @param _token address of token contract.
      * @return message id of the send message.
      */
     function isRegisteredAsNativeToken(address _token) public view returns (bool) {
-        return isTokenRegistered(_token) && nativeTokenAddress(_token) == address(0);
+        return uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] > 0;
     }
 
     /**
-     * @dev Internal function for marking token as registered.
+     * @dev Internal function for marking native token as registered.
      * @param _token address of the token contract.
      * @param _state registration state.
      */
-    function _setTokenIsRegistered(address _token, uint256 _state) internal {
-        uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] = _state;
+    function _setNativeTokenIsRegistered(address _token, uint256 _state) internal {
+        if (uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] != _state) {
+            uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] = _state;
+        }
     }
 }

@@ -1,16 +1,22 @@
 pragma solidity 0.7.5;
 
 import "../../../Ownable.sol";
-import "./TokenRegistrar.sol";
 
 /**
  * @title NFTBridgeLimits
  * @dev Functionality for keeping track of bridging limits for multiple ERC721 tokens.
  */
-abstract contract NFTBridgeLimits is Ownable, TokenRegistrar {
+abstract contract NFTBridgeLimits is Ownable {
     // token == 0x00..00 represents default limits for all newly created tokens
     event DailyLimitChanged(address indexed token, uint256 newLimit);
     event ExecutionDailyLimitChanged(address indexed token, uint256 newLimit);
+
+    /**
+     * @dev Checks if specified token was already bridged at least once.
+     * @param _token address of the token contract.
+     * @return true, if token was already bridged.
+     */
+    function isTokenRegistered(address _token) public view virtual returns (bool);
 
     /**
      * @dev Retrieves the total spent amount for particular token during specific day.
