@@ -7,7 +7,6 @@ import "./components/common/FailedMessagesProcessor.sol";
 import "./components/common/NFTBridgeLimits.sol";
 import "./components/common/ERC721Relayer.sol";
 import "./components/common/NFTOmnibridgeInfo.sol";
-import "./components/native/NativeTokensRegistry.sol";
 import "./components/native/ERC721Reader.sol";
 import "./components/bridged/BridgedTokensRegistry.sol";
 import "./components/bridged/TokenImageStorage.sol";
@@ -24,7 +23,6 @@ abstract contract BasicNFTOmnibridge is
     Upgradeable,
     BridgeOperationsStorage,
     BridgedTokensRegistry,
-    NativeTokensRegistry,
     NFTOmnibridgeInfo,
     NFTBridgeLimits,
     ERC721Reader,
@@ -65,15 +63,6 @@ abstract contract BasicNFTOmnibridge is
         setInitialize();
 
         return isInitialized();
-    }
-
-    /**
-     * @dev Checks if specified token was already bridged at least once.
-     * @param _token address of the token contract.
-     * @return true, if token was already bridged.
-     */
-    function isTokenRegistered(address _token) public view override returns (bool) {
-        return isRegisteredAsNativeToken(_token) || nativeTokenAddress(_token) != address(0);
     }
 
     /**
@@ -144,7 +133,7 @@ abstract contract BasicNFTOmnibridge is
         address _recipient,
         uint256 _tokenId
     ) external onlyMediator {
-        require(isRegisteredAsNativeToken(_token));
+        _setTokenIsRegistered(_token, REGISTERED_AND_DEPLOYED);
 
         _handleTokens(_token, true, _recipient, _tokenId);
     }
@@ -176,18 +165,16 @@ abstract contract BasicNFTOmnibridge is
         address _receiver,
         uint256 _tokenId
     ) external onlyIfUpgradeabilityOwner {
-        require(_receiver != address(0) && _receiver != mediatorContractOnOtherSide());
         require(isRegisteredAsNativeToken(_token));
         require(!mediatorOwns(_token, _tokenId));
         require(IERC721(_token).ownerOf(_tokenId) == address(this));
 
         _setMediatorOwns(_token, _tokenId, true);
 
-        bytes memory data = abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId);
-
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenId);
         bytes32 _messageId =
             bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
-        _recordBridgeOperation(false, _messageId, _token, _receiver, _tokenId);
+        _recordBridgeOperation(_messageId, _token, _receiver, _tokenId);
     }
 
     /**
@@ -203,75 +190,79 @@ abstract contract BasicNFTOmnibridge is
         address _receiver,
         uint256 _tokenId
     ) internal override {
-        require(_receiver != address(0) && _receiver != mediatorContractOnOtherSide());
-
-        bool isKnownToken = isTokenRegistered(_token);
-        bool isNativeToken = !isKnownToken || isRegisteredAsNativeToken(_token);
-        bytes memory data;
-
-        if (!isKnownToken) {
+        if (!isTokenRegistered(_token)) {
             require(IERC721(_token).ownerOf(_tokenId) == address(this));
-
-            string memory name = _readName(_token);
-            string memory symbol = _readSymbol(_token);
-            string memory tokenURI = _readTokenURI(_token, _tokenId);
-
-            require(bytes(name).length > 0 || bytes(symbol).length > 0);
             _initToken(_token);
-
-            data = abi.encodeWithSelector(
-                this.deployAndHandleBridgedNFT.selector,
-                _token,
-                name,
-                symbol,
-                _receiver,
-                _tokenId,
-                tokenURI
-            );
-        } else if (isNativeToken) {
-            string memory tokenURI = _readTokenURI(_token, _tokenId);
-            data = abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId, tokenURI);
-        } else {
-            IBurnableMintableERC721Token(_token).burn(_tokenId);
-            data = abi.encodeWithSelector(
-                this.handleNativeNFT.selector,
-                nativeTokenAddress(_token),
-                _receiver,
-                _tokenId
-            );
         }
 
-        if (isNativeToken) {
-            _setMediatorOwns(_token, _tokenId, true);
-        }
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenId);
 
         bytes32 _messageId =
             bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), data, requestGasLimit());
 
-        _recordBridgeOperation(!isKnownToken, _messageId, _token, _from, _tokenId);
+        _recordBridgeOperation(_messageId, _token, _from, _tokenId);
+    }
+
+    /**
+     * @dev Constructs the message to be sent to the other side. Burns/locks bridged token.
+     * @param _token bridged token address.
+     * @param _receiver address of the tokens receiver on the other side.
+     * @param _tokenId unique id of the bridged token.
+     */
+    function _prepareMessage(
+        address _token,
+        address _receiver,
+        uint256 _tokenId
+    ) internal returns (bytes memory) {
+        require(_receiver != address(0) && _receiver != mediatorContractOnOtherSide());
+
+        address nativeToken = nativeTokenAddress(_token);
+
+        // process token is native with respect to this side of the bridge
+        if (nativeToken == address(0)) {
+            _setMediatorOwns(_token, _tokenId, true);
+
+            string memory tokenURI = _readTokenURI(_token, _tokenId);
+
+            // process token which bridged alternative was already ACKed to be deployed
+            if (isBridgedTokenDeployAcknowledged(_token)) {
+                return abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId, tokenURI);
+            }
+
+            string memory name = _readName(_token);
+            string memory symbol = _readSymbol(_token);
+
+            require(bytes(name).length > 0 || bytes(symbol).length > 0);
+
+            return
+                abi.encodeWithSelector(
+                    this.deployAndHandleBridgedNFT.selector,
+                    _token,
+                    name,
+                    symbol,
+                    _receiver,
+                    _tokenId,
+                    tokenURI
+                );
+        }
+
+        // process already known token that is bridged from other chain
+        IBurnableMintableERC721Token(_token).burn(_tokenId);
+        return abi.encodeWithSelector(this.handleNativeNFT.selector, nativeToken, _receiver, _tokenId);
     }
 
     /**
      * @dev Unlock/Mint back the bridged token that was bridged to the other network but failed.
-     * @param _messageId id of the failed message.
      * @param _token address that bridged token contract.
      * @param _recipient address that will receive the tokens.
      * @param _tokenId unique id of the bridged token.
      */
     function executeActionOnFixedTokens(
-        bytes32 _messageId,
         address _token,
         address _recipient,
         uint256 _tokenId
     ) internal override {
-        bytes32 registrationMessageId = tokenRegistrationMessageId(_token);
-        if (_messageId == registrationMessageId) {
-            delete uintStorage[keccak256(abi.encodePacked("dailyLimit", _token))];
-            delete uintStorage[keccak256(abi.encodePacked("executionDailyLimit", _token))];
-            _setTokenRegistrationMessageId(_token, bytes32(0));
-        }
-
-        _releaseToken(_token, registrationMessageId != bytes32(0), _recipient, _tokenId);
+        _releaseToken(_token, nativeTokenAddress(_token) == address(0), _recipient, _tokenId);
     }
 
     /**
@@ -336,14 +327,12 @@ abstract contract BasicNFTOmnibridge is
     /**
      * @dev Internal function for recording bridge operation for further usage.
      * Recorded information is used for fixing failed requests on the other side.
-     * @param _register true, if native token is bridged for the first time.
      * @param _messageId id of the sent message.
      * @param _token bridged token address.
      * @param _sender address of the tokens sender.
      * @param _tokenId unique id of the bridged token.
      */
     function _recordBridgeOperation(
-        bool _register,
         bytes32 _messageId,
         address _token,
         address _sender,
@@ -356,10 +345,6 @@ abstract contract BasicNFTOmnibridge is
         setMessageRecipient(_messageId, _sender);
         setMessageValue(_messageId, _tokenId);
 
-        if (_register) {
-            _setTokenRegistrationMessageId(_token, _messageId);
-        }
-
         emit TokensBridgingInitiated(_token, _sender, _tokenId, _messageId);
     }
 
@@ -368,6 +353,7 @@ abstract contract BasicNFTOmnibridge is
      * @param _token address of the token contract.
      */
     function _initToken(address _token) internal {
+        _setTokenIsRegistered(_token, REGISTERED);
         _setDailyLimit(_token, dailyLimit(address(0)));
         _setExecutionDailyLimit(_token, executionDailyLimit(address(0)));
     }
