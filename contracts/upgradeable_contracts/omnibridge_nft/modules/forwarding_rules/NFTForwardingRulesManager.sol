@@ -3,10 +3,10 @@ pragma solidity 0.7.5;
 import "../OwnableModule.sol";
 
 /**
- * @title MultiTokenForwardingRulesManager
- * @dev Multi token mediator functionality for managing destination AMB lanes permissions.
+ * @title NFTForwardingRulesManager
+ * @dev NFT Omnibrdge module for managing destination AMB lanes permissions.
  */
-contract MultiTokenForwardingRulesManager is OwnableModule {
+contract NFTForwardingRulesManager is OwnableModule {
     address internal constant ANY_ADDRESS = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 
     // Forwarding rules mapping
@@ -33,29 +33,26 @@ contract MultiTokenForwardingRulesManager is OwnableModule {
         address _sender,
         address _receiver
     ) public view returns (int256) {
-        int256 defaultLane = forwardingRule[_token][ANY_ADDRESS][ANY_ADDRESS]; // specific token for all senders and receivers
-        int256 lane;
-        if (defaultLane < 0) {
-            lane = forwardingRule[_token][_sender][ANY_ADDRESS]; // specific token for specific sender
-            if (lane != 0) return lane;
-            lane = forwardingRule[_token][ANY_ADDRESS][_receiver]; // specific token for specific receiver
-            if (lane != 0) return lane;
-            return defaultLane;
-        }
-        lane = forwardingRule[ANY_ADDRESS][_sender][ANY_ADDRESS]; // all tokens for specific sender
+        int256 lane = forwardingRule[ANY_ADDRESS][_sender][ANY_ADDRESS]; // all tokens for specific sender
         if (lane != 0) return lane;
-        return forwardingRule[ANY_ADDRESS][ANY_ADDRESS][_receiver]; // all tokens for specific receiver
+        lane = forwardingRule[ANY_ADDRESS][ANY_ADDRESS][_receiver]; // all tokens for specific receiver
+        if (lane != 0) return lane;
+        lane = forwardingRule[_token][ANY_ADDRESS][ANY_ADDRESS]; // specific token for all senders and receivers
+        if (lane != 0) return lane;
+        lane = forwardingRule[_token][_sender][ANY_ADDRESS]; // specific token for specific sender
+        if (lane != 0) return lane;
+        return forwardingRule[_token][ANY_ADDRESS][_receiver]; // specific token for specific receiver
     }
 
     /**
      * Updates the forwarding rule for bridging specific token.
      * Only owner can call this method.
      * @param _token address of the token contract on the foreign side.
-     * @param _enable true, if bridge operations for a given token should be forwarded to the manual lane.
+     * @param _enable true, if bridge operations for a given token should be forwarded to the oracle-driven lane.
      */
     function setTokenForwardingRule(address _token, bool _enable) external {
         require(_token != ANY_ADDRESS);
-        _setForwardingRule(_token, ANY_ADDRESS, ANY_ADDRESS, _enable ? int256(-1) : int256(0));
+        _setForwardingRule(_token, ANY_ADDRESS, ANY_ADDRESS, _enable ? int256(1) : int256(0));
     }
 
     /**

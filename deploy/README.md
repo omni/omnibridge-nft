@@ -86,8 +86,8 @@ FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT=2000000
 # address of an already deployed ERC721BridgeToken contract that will be used as an implementation for all bridged tokens on the Home side
 # leave empty, if you want to deploy a new ERC721BridgeToken for further usage
 HOME_ERC721_TOKEN_IMAGE=
-# address of an already deployed MultiTokenForwardingRulesManager contract for managing AMB lane permissions.
-# leave empty, if you want to deploy a new MultiTokenForwardingRulesManager.
+# address of an already deployed NFTForwardingRulesManager contract for managing AMB lane permissions.
+# leave empty, if you want to deploy a new NFTForwardingRulesManager.
 # put false, if you want to do not use lane permissions.
 HOME_FORWARDING_RULES_MANAGER=
 

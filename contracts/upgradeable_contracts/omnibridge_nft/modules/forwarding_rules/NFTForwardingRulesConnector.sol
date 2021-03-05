@@ -1,14 +1,14 @@
 pragma solidity 0.7.5;
 
 import "@openzeppelin/contracts/utils/Address.sol";
-import "./MultiTokenForwardingRulesManager.sol";
+import "./NFTForwardingRulesManager.sol";
 import "../../BasicNFTOmnibridge.sol";
 
 /**
- * @title MultiTokenForwardingRulesConnector
+ * @title NFTForwardingRulesConnector
  * @dev Connectivity functionality that is required for using forwarding rules manager.
  */
-abstract contract MultiTokenForwardingRulesConnector is BasicNFTOmnibridge {
+abstract contract NFTForwardingRulesConnector is BasicNFTOmnibridge {
     bytes32 internal constant FORWARDING_RULES_MANAGER_CONTRACT =
         0x5f86f226cd489cc09187d5f5e0adfb94308af0d4ceac482dd8a8adea9d80daf4; // keccak256(abi.encodePacked("forwardingRulesManagerContract"))
 
@@ -24,8 +24,8 @@ abstract contract MultiTokenForwardingRulesConnector is BasicNFTOmnibridge {
      * @dev Retrieves an address of the forwarding rules manager contract.
      * @return address of the forwarding rules manager contract.
      */
-    function forwardingRulesManager() public view returns (MultiTokenForwardingRulesManager) {
-        return MultiTokenForwardingRulesManager(addressStorage[FORWARDING_RULES_MANAGER_CONTRACT]);
+    function forwardingRulesManager() public view returns (NFTForwardingRulesManager) {
+        return NFTForwardingRulesManager(addressStorage[FORWARDING_RULES_MANAGER_CONTRACT]);
     }
 
     /**
@@ -49,7 +49,7 @@ abstract contract MultiTokenForwardingRulesConnector is BasicNFTOmnibridge {
         address _sender,
         address _receiver
     ) internal view override returns (bool) {
-        MultiTokenForwardingRulesManager manager = forwardingRulesManager();
-        return address(manager) == address(0) || manager.destinationLane(_token, _sender, _receiver) >= 0;
+        NFTForwardingRulesManager manager = forwardingRulesManager();
+        return address(manager) == address(0) || manager.destinationLane(_token, _sender, _receiver) > 0;
     }
 }

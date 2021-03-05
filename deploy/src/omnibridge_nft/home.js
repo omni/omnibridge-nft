@@ -4,7 +4,7 @@ const {
   EternalStorageProxy,
   HomeNFTOmnibridge,
   ERC721BridgeToken,
-  MultiTokenForwardingRulesManager,
+  NFTForwardingRulesManager,
 } = require('../loadContracts')
 const { HOME_ERC721_TOKEN_IMAGE, HOME_FORWARDING_RULES_MANAGER, HOME_BRIDGE_OWNER } = require('../loadEnv')
 const { ZERO_ADDRESS } = require('../constants')
@@ -35,7 +35,7 @@ async function deployHome() {
     console.log(`\n[Home] Deploying Forwarding Rules Manager contract with the following parameters:
     OWNER: ${HOME_BRIDGE_OWNER}
     `)
-    const manager = await deployContract(MultiTokenForwardingRulesManager, [HOME_BRIDGE_OWNER], { nonce: nonce++ })
+    const manager = await deployContract(NFTForwardingRulesManager, [HOME_BRIDGE_OWNER], { nonce: nonce++ })
     forwardingRulesManager = manager.options.address
     console.log('\n[Home] New Forwarding Rules Manager has been deployed: ', forwardingRulesManager)
   } else {

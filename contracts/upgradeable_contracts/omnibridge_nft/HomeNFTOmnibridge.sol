@@ -1,13 +1,13 @@
 pragma solidity 0.7.5;
 
-import "./modules/forwarding_rules/MultiTokenForwardingRulesConnector.sol";
+import "./modules/forwarding_rules/NFTForwardingRulesConnector.sol";
 
 /**
  * @title HomeNFTOmnibridge
  * @dev Home side implementation for multi-token ERC721 mediator intended to work on top of AMB bridge.
  * It is designed to be used as an implementation contract of EternalStorageProxy contract.
  */
-contract HomeNFTOmnibridge is MultiTokenForwardingRulesConnector {
+contract HomeNFTOmnibridge is NFTForwardingRulesConnector {
     /**
      * @dev Stores the initial parameters of the mediator.
      * @param _bridgeContract the address of the AMB bridge contract.
@@ -17,7 +17,7 @@ contract HomeNFTOmnibridge is MultiTokenForwardingRulesConnector {
      * @param _requestGasLimit the gas limit for the message execution.
      * @param _owner address of the owner of the mediator contract.
      * @param _image address of the ERC721 token image.
-     * @param _forwardingRulesManager address of the MultiTokenForwardingRulesManager contract that will be used for managing lane permissions.
+     * @param _forwardingRulesManager address of the NFTForwardingRulesManager contract that will be used for managing lane permissions.
      */
     function initialize(
         address _bridgeContract,
