@@ -3,6 +3,12 @@ const ForeignNFTOmnibridge = artifacts.require('ForeignNFTOmnibridge')
 const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
+const selectors = {
+  deployAndHandleBridgedNFT: '0x3c91b105',
+  handleBridgedNFT: '0xfbc547ce',
+  handleNativeNFT: '0xe3ae3984',
+  fixFailedMessage: '0x0950d515',
+}
 
 const { expect } = require('chai')
 const { getEvents, ether, expectEventInLogs } = require('../helpers/helpers')
@@ -267,41 +273,49 @@ function runTests(accounts, isHome) {
         for (const send of sendFunctions) {
           it(`should make calls to deployAndHandleBridgedNFT and handleBridgedNFT using ${send.name}`, async () => {
             const tokenId1 = await mintNewNFT()
-            const receiver = await send(tokenId1).should.be.fulfilled
-
-            let events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-            expect(events.length).to.be.equal(1)
-            const { data, messageId, dataType, executor } = events[0].returnValues
-            expect(data.slice(2, 10)).to.be.equal('3c91b105')
-            const args = web3.eth.abi.decodeParameters(
-              ['address', 'string', 'string', 'address', 'uint256', 'string'],
-              data.slice(10)
-            )
-            expect(executor).to.be.equal(otherSideMediator)
-            expect(args[0]).to.be.equal(token.address)
-            expect(args[1]).to.be.equal(await token.name())
-            expect(args[2]).to.be.equal(await token.symbol())
-            expect(args[3]).to.be.equal(receiver)
-            expect(args[4]).to.be.equal(tokenId1.toString())
-            expect(args[5]).to.be.equal(uriFor(tokenId1))
-            expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal(messageId)
-
             const tokenId2 = await mintNewNFT()
+            const receiver = await send(tokenId1).should.be.fulfilled
             await send(tokenId2).should.be.fulfilled
 
-            events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-            expect(events.length).to.be.equal(2)
-            const { data: data2, dataType: dataType2 } = events[1].returnValues
-            expect(data2.slice(2, 10)).to.be.equal('fbc547ce')
-            const args2 = web3.eth.abi.decodeParameters(['address', 'address', 'uint256', 'string'], data2.slice(10))
-            expect(args2[0]).to.be.equal(token.address)
-            expect(args2[1]).to.be.equal(receiver)
-            expect(args2[2]).to.be.equal(tokenId2.toString())
-            expect(args2[3]).to.be.equal(uriFor(tokenId2))
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
 
+            expect(await contract.isBridgedTokenDeployAcknowledged(token.address)).to.be.equal(false)
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+            expect(await contract.isBridgedTokenDeployAcknowledged(token.address)).to.be.equal(true)
+
+            await send(tokenId1).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+
+            for (let i = 0; i < 2; i++) {
+              const { data, dataType, executor } = events[i].returnValues
+              expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+              const args = web3.eth.abi.decodeParameters(
+                ['address', 'string', 'string', 'address', 'uint256', 'string'],
+                data.slice(10)
+              )
+              expect(dataType).to.be.equal('0')
+              expect(executor).to.be.equal(otherSideMediator)
+              expect(args[0]).to.be.equal(token.address)
+              expect(args[1]).to.be.equal(await token.name())
+              expect(args[2]).to.be.equal(await token.symbol())
+              expect(args[3]).to.be.equal(receiver)
+              const tokenId = [tokenId1, tokenId2][i]
+              expect(args[4]).to.be.equal(tokenId.toString())
+              expect(args[5]).to.be.equal(uriFor(tokenId))
+            }
+
+            const { data, dataType } = events[2].returnValues
             expect(dataType).to.be.equal('0')
-            expect(dataType2).to.be.equal('0')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
+            expect(data.slice(0, 10)).to.be.equal(selectors.handleBridgedNFT)
+            const args = web3.eth.abi.decodeParameters(['address', 'address', 'uint256', 'string'], data.slice(10))
+            expect(args[0]).to.be.equal(token.address)
+            expect(args[1]).to.be.equal(receiver)
+            expect(args[2]).to.be.equal(tokenId1.toString())
+            expect(args[3]).to.be.equal(uriFor(tokenId1))
+
+            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('3')
             expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(true)
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
             expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
@@ -310,15 +324,13 @@ function runTests(accounts, isHome) {
             expect(await token.tokenURI(tokenId2)).to.be.equal(uriFor(tokenId2))
 
             const depositEvents = await getEvents(contract, { event: 'TokensBridgingInitiated' })
-            expect(depositEvents.length).to.be.equal(2)
-            expect(depositEvents[0].returnValues.token).to.be.equal(token.address)
-            expect(depositEvents[0].returnValues.sender).to.be.equal(user)
-            expect(depositEvents[0].returnValues.tokenId).to.be.equal(tokenId1.toString())
-            expect(depositEvents[0].returnValues.messageId).to.include('0x11223344')
-            expect(depositEvents[1].returnValues.token).to.be.equal(token.address)
-            expect(depositEvents[1].returnValues.sender).to.be.equal(user)
-            expect(depositEvents[1].returnValues.tokenId).to.be.equal(tokenId2.toString())
-            expect(depositEvents[1].returnValues.messageId).to.include('0x11223344')
+            expect(depositEvents.length).to.be.equal(3)
+            for (let i = 0; i < 3; i++) {
+              expect(depositEvents[i].returnValues.token).to.be.equal(token.address)
+              expect(depositEvents[i].returnValues.sender).to.be.equal(user)
+              expect(depositEvents[i].returnValues.tokenId).to.be.equal([tokenId1, tokenId2, tokenId1][i].toString())
+              expect(depositEvents[i].returnValues.messageId).to.include('0x11223344')
+            }
           })
         }
 
@@ -347,7 +359,12 @@ function runTests(accounts, isHome) {
               // User transfer tokens twice
               const tokenId1 = await mintNewNFT()
               const tokenId2 = await mintNewNFT()
+              const tokenId3 = await mintNewNFT()
+
               await send(tokenId1)
+              await send(tokenId3)
+              const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId3).encodeABI()
+              expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
               await send(tokenId2)
 
               expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('2')
@@ -355,9 +372,9 @@ function runTests(accounts, isHome) {
               expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
 
               const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-              expect(events.length).to.be.equal(2)
+              expect(events.length).to.be.equal(3)
               const transferMessageId1 = events[0].returnValues.messageId
-              const transferMessageId2 = events[1].returnValues.messageId
+              const transferMessageId2 = events[2].returnValues.messageId
               expect(await contract.messageFixed(transferMessageId1)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId2)).to.be.equal(false)
 
@@ -377,15 +394,11 @@ function runTests(accounts, isHome) {
               expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId1)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId2)).to.be.equal(true)
-              expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal(transferMessageId1)
 
               expect(await executeMessageCall(otherMessageId, fixData1)).to.be.equal(true)
               expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('0')
               expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId1)).to.be.equal(true)
-              expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal('0x'.padEnd(66, '0'))
-              expect(await contract.dailyLimit(token.address)).to.be.bignumber.equal('0')
-              expect(await contract.executionDailyLimit(token.address)).to.be.bignumber.equal('0')
 
               const event = await getEvents(contract, { event: 'FailedMessageFixed' })
               expect(event.length).to.be.equal(2)
@@ -447,14 +460,22 @@ function runTests(accounts, isHome) {
             expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
             const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(2)
-            const { data, dataType, executor } = events[1].returnValues
-            expect(data.slice(2, 10)).to.be.equal('fbc547ce')
-            const args = web3.eth.abi.decodeParameters(['address', 'address', 'uint256'], data.slice(10))
-            expect(executor).to.be.equal(otherSideMediator)
-            expect(dataType).to.be.bignumber.equal('0')
-            expect(args[0]).to.be.equal(token.address)
-            expect(args[1]).to.be.equal(owner)
-            expect(args[2]).to.be.bignumber.equal(tokenId2.toString())
+            const { data } = events[1].returnValues
+            expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+          })
+
+          it('should use different methods on the other side', async () => {
+            await contract.fixMediatorBalance(token.address, owner, tokenId2, { from: owner }).should.be.fulfilled
+
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+
+            await contract.fixMediatorBalance(token.address, owner, tokenId3, { from: owner }).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+            expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+            expect(events[2].returnValues.data.slice(0, 10)).to.be.equal(selectors.handleBridgedNFT)
           })
 
           it('should allow to fix extra mediator balance with respect to limits', async () => {
@@ -548,7 +569,7 @@ function runTests(accounts, isHome) {
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(1)
           const { data } = events[0].returnValues
-          expect(data.slice(2, 10)).to.be.equal('0950d515')
+          expect(data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
           const args = web3.eth.abi.decodeParameters(['bytes32'], data.slice(10))
           expect(args[0]).to.be.equal(failedMessageId)
         })
@@ -588,8 +609,8 @@ function runTests(accounts, isHome) {
 
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(2)
-          expect(events[0].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
-          expect(events[1].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
+          expect(events[0].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
+          expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
         })
       })
     })
@@ -615,21 +636,19 @@ function runTests(accounts, isHome) {
             let events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(1)
             const { data, dataType, executor } = events[0].returnValues
-            expect(data.slice(2, 10)).to.be.equal('e3ae3984')
+            expect(data.slice(0, 10)).to.be.equal(selectors.handleNativeNFT)
             const args = web3.eth.abi.decodeParameters(['address', 'address', 'uint256'], data.slice(10))
             expect(executor).to.be.equal(otherSideMediator)
             expect(args[0]).to.be.equal(otherSideToken1)
             expect(args[1]).to.be.equal(receiver)
             expect(args[2]).to.be.equal('1')
-            expect(await contract.tokenRegistrationMessageId(otherSideToken1)).to.be.equal('0x'.padEnd(66, '0'))
-            expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal('0x'.padEnd(66, '0'))
 
             await send(2).should.be.fulfilled
 
             events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(2)
             const { data: data2, dataType: dataType2 } = events[1].returnValues
-            expect(data2.slice(2, 10)).to.be.equal('e3ae3984')
+            expect(data2.slice(0, 10)).to.be.equal(selectors.handleNativeNFT)
             const args2 = web3.eth.abi.decodeParameters(['address', 'address', 'uint256'], data2.slice(10))
             expect(args2[0]).to.be.equal(otherSideToken1)
             expect(args2[1]).to.be.equal(receiver)
@@ -885,7 +904,7 @@ function runTests(accounts, isHome) {
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(1)
           const { data } = events[0].returnValues
-          expect(data.slice(2, 10)).to.be.equal('0950d515')
+          expect(data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
           const args = web3.eth.abi.decodeParameters(['bytes32'], data.slice(10))
           expect(args[0]).to.be.equal(failedMessageId)
         })
@@ -918,8 +937,8 @@ function runTests(accounts, isHome) {
 
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(2)
-          expect(events[0].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
-          expect(events[1].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
+          expect(events[0].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
+          expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
         })
       })
     })
