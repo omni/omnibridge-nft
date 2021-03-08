@@ -1,12 +1,12 @@
 pragma solidity 0.7.5;
 
-import "../OwnableModule.sol";
+import "../OmnibridgeModule.sol";
 
 /**
  * @title NFTForwardingRulesManager
  * @dev NFT Omnibrdge module for managing destination AMB lanes permissions.
  */
-contract NFTForwardingRulesManager is OwnableModule {
+contract NFTForwardingRulesManager is OmnibridgeModule {
     address internal constant ANY_ADDRESS = 0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF;
 
     // Forwarding rules mapping
@@ -16,7 +16,7 @@ contract NFTForwardingRulesManager is OwnableModule {
     event ForwardingRuleUpdated(address token, address sender, address receiver, int256 lane);
 
     // solhint-disable-next-line no-empty-blocks
-    constructor(address _owner) OwnableModule(_owner) {}
+    constructor(IOwnable _mediator) OmnibridgeModule(_mediator) {}
 
     /**
      * @dev Tells the module interface version that this contract supports.

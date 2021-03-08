@@ -6,7 +6,7 @@ const {
   ERC721BridgeToken,
   NFTForwardingRulesManager,
 } = require('../loadContracts')
-const { HOME_ERC721_TOKEN_IMAGE, HOME_FORWARDING_RULES_MANAGER, HOME_BRIDGE_OWNER } = require('../loadEnv')
+const { HOME_ERC721_TOKEN_IMAGE, HOME_FORWARDING_RULES_MANAGER } = require('../loadEnv')
 const { ZERO_ADDRESS } = require('../constants')
 
 async function deployHome() {
@@ -33,9 +33,11 @@ async function deployHome() {
   let forwardingRulesManager = HOME_FORWARDING_RULES_MANAGER === false ? ZERO_ADDRESS : HOME_FORWARDING_RULES_MANAGER
   if (forwardingRulesManager === '') {
     console.log(`\n[Home] Deploying Forwarding Rules Manager contract with the following parameters:
-    OWNER: ${HOME_BRIDGE_OWNER}
+    MEDIATOR: ${homeBridgeStorage.options.address}
     `)
-    const manager = await deployContract(NFTForwardingRulesManager, [HOME_BRIDGE_OWNER], { nonce: nonce++ })
+    const manager = await deployContract(NFTForwardingRulesManager, [homeBridgeStorage.options.address], {
+      nonce: nonce++,
+    })
     forwardingRulesManager = manager.options.address
     console.log('\n[Home] New Forwarding Rules Manager has been deployed: ', forwardingRulesManager)
   } else {

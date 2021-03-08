@@ -956,8 +956,8 @@ function runTests(accounts, isHome) {
       describe('oracle driven lane permissions', () => {
         let manager
         beforeEach(async () => {
-          manager = await NFTForwardingRulesManager.new(owner)
-          expect(await manager.owner()).to.be.equal(owner)
+          manager = await NFTForwardingRulesManager.new(contract.address)
+          expect(await manager.mediator()).to.be.equal(contract.address)
         })
 
         it('should allow to update manager address', async () => {
