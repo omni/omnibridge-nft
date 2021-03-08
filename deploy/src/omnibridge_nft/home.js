@@ -1,7 +1,12 @@
 const { web3Home, deploymentAddress } = require('../web3')
 const { deployContract, upgradeProxy } = require('../deploymentUtils')
-const { EternalStorageProxy, HomeNFTOmnibridge, ERC721BridgeToken } = require('../loadContracts')
-const { HOME_ERC721_TOKEN_IMAGE } = require('../loadEnv')
+const {
+  EternalStorageProxy,
+  HomeNFTOmnibridge,
+  ERC721BridgeToken,
+  NFTForwardingRulesManager,
+} = require('../loadContracts')
+const { HOME_ERC721_TOKEN_IMAGE, HOME_FORWARDING_RULES_MANAGER } = require('../loadEnv')
 const { ZERO_ADDRESS } = require('../constants')
 
 async function deployHome() {
@@ -25,6 +30,20 @@ async function deployHome() {
     console.log('\n[Home] Using existing token image: ', tokenImage)
   }
 
+  let forwardingRulesManager = HOME_FORWARDING_RULES_MANAGER === false ? ZERO_ADDRESS : HOME_FORWARDING_RULES_MANAGER
+  if (forwardingRulesManager === '') {
+    console.log(`\n[Home] Deploying Forwarding Rules Manager contract with the following parameters:
+    MEDIATOR: ${homeBridgeStorage.options.address}
+    `)
+    const manager = await deployContract(NFTForwardingRulesManager, [homeBridgeStorage.options.address], {
+      nonce: nonce++,
+    })
+    forwardingRulesManager = manager.options.address
+    console.log('\n[Home] New Forwarding Rules Manager has been deployed: ', forwardingRulesManager)
+  } else {
+    console.log('\n[Home] Using existing Forwarding Rules Manager: ', forwardingRulesManager)
+  }
+
   console.log('\n[Home] Deploying Bridge Mediator implementation\n')
   const homeBridgeImplementation = await deployContract(HomeNFTOmnibridge, [], {
     nonce: nonce++,
@@ -43,6 +62,7 @@ async function deployHome() {
   return {
     homeBridgeMediator: { address: homeBridgeStorage.options.address },
     tokenImage: { address: tokenImage },
+    forwardingRulesManager: { address: forwardingRulesManager },
   }
 }
 

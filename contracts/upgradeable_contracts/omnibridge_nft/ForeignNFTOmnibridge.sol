@@ -9,6 +9,52 @@ import "./BasicNFTOmnibridge.sol";
  */
 contract ForeignNFTOmnibridge is BasicNFTOmnibridge {
     /**
+     * @dev Stores the initial parameters of the mediator.
+     * @param _bridgeContract the address of the AMB bridge contract.
+     * @param _mediatorContract the address of the mediator contract on the other network.
+     * @param _dailyLimit daily limit for outgoing transfers
+     * @param _executionDailyLimit daily limit for ingoing bridge operations
+     * @param _requestGasLimit the gas limit for the message execution.
+     * @param _owner address of the owner of the mediator contract.
+     * @param _image address of the ERC721 token image.
+     */
+    function initialize(
+        address _bridgeContract,
+        address _mediatorContract,
+        uint256 _dailyLimit,
+        uint256 _executionDailyLimit,
+        uint256 _requestGasLimit,
+        address _owner,
+        address _image
+    ) external onlyRelevantSender returns (bool) {
+        require(!isInitialized());
+
+        _setBridgeContract(_bridgeContract);
+        _setMediatorContractOnOtherSide(_mediatorContract);
+        _setDailyLimit(address(0), _dailyLimit);
+        _setExecutionDailyLimit(address(0), _executionDailyLimit);
+        _setRequestGasLimit(_requestGasLimit);
+        _setOwner(_owner);
+        _setTokenImage(_image);
+
+        setInitialize();
+
+        return isInitialized();
+    }
+
+    /**
+     * @dev Internal function for sending an AMB message to the mediator on the other side.
+     * @param _data data to be sent to the other side of the bridge.
+     * @param _useOracleLane always true, not used on this side of the bridge.
+     * @return id of the sent message.
+     */
+    function _passMessage(bytes memory _data, bool _useOracleLane) internal override returns (bytes32) {
+        (_useOracleLane);
+
+        return bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), _data, requestGasLimit());
+    }
+
+    /**
      * @dev Internal function for transforming the bridged token name. Appends a side-specific suffix.
      * @param _name bridged token from the other side.
      * @return token name for this side of the bridge.
