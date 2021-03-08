@@ -4,6 +4,7 @@ const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
 const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
+const SelectorTokenGasLimitManager = artifacts.require('SelectorTokenGasLimitManager')
 const selectors = {
   deployAndHandleBridgedNFT: '0x3c91b105',
   handleBridgedNFT: '0xfbc547ce',
@@ -65,7 +66,7 @@ function runTests(accounts, isHome) {
       opts.otherSideMediator || otherSideMediator,
       opts.dailyLimit || 20,
       opts.executionDailyLimit || 10,
-      opts.requestGasLimit || 1000000,
+      isHome ? opts.gasLimitManager || ZERO_ADDRESS : opts.requestGasLimit || 1000000,
       opts.owner || owner,
       opts.tokenImage || tokenImage.address,
     ]
@@ -142,7 +143,6 @@ function runTests(accounts, isHome) {
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
       expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
-      expect(await contract.requestGasLimit()).to.be.bignumber.equal(ZERO)
       expect(await contract.owner()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.tokenImage()).to.be.equal(ZERO_ADDRESS)
 
@@ -151,12 +151,15 @@ function runTests(accounts, isHome) {
       await initialize({ ambContract: ZERO_ADDRESS }).should.be.rejected
 
       if (isHome) {
+        // gas limit manage is not a contract
+        await initialize({ gasLimitManager: owner }).should.be.rejected
+
         // forwarding rules manager is not a contract
         await initialize({ forwardingRulesManager: owner }).should.be.rejected
+      } else {
+        // maxGasPerTx > bridge maxGasPerTx
+        await initialize({ requestGasLimit: ether('1') }).should.be.rejected
       }
-
-      // maxGasPerTx > bridge maxGasPerTx
-      await initialize({ requestGasLimit: ether('1') }).should.be.rejected
 
       // not valid owner
       await initialize({ owner: ZERO_ADDRESS }).should.be.rejected
@@ -175,7 +178,11 @@ function runTests(accounts, isHome) {
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(otherSideMediator)
       expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('20')
       expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('10')
-      expect(await contract.requestGasLimit()).to.be.bignumber.equal('1000000')
+      if (isHome) {
+        expect(await contract.gasLimitManager()).to.be.equal(ZERO_ADDRESS)
+      } else {
+        expect(await contract.requestGasLimit()).to.be.bignumber.equal('1000000')
+      }
       expect(await contract.owner()).to.be.equal(owner)
       expect(await contract.tokenImage()).to.be.equal(tokenImage.address)
 
@@ -266,6 +273,159 @@ function runTests(accounts, isHome) {
           await contract.setCustomTokenAddressPair(otherSideToken1, token.address).should.be.rejected
         })
       })
+
+      if (isHome) {
+        describe('gas limit manager', () => {
+          let manager
+          beforeEach(async () => {
+            manager = await SelectorTokenGasLimitManager.new(ambBridgeContract.address, contract.address, 1000000)
+          })
+
+          it('should allow to set new manager', async () => {
+            expect(await contract.gasLimitManager()).to.be.equal(ZERO_ADDRESS)
+
+            await contract.setGasLimitManager(manager.address, { from: user }).should.be.rejected
+            await contract.setGasLimitManager(manager.address, { from: owner }).should.be.fulfilled
+
+            expect(await contract.gasLimitManager()).to.be.equal(manager.address)
+            expect(await manager.mediator()).to.be.equal(contract.address)
+            expect(await manager.bridge()).to.be.equal(ambBridgeContract.address)
+            expect(await manager.methods['requestGasLimit()']()).to.be.bignumber.equal('1000000')
+          })
+
+          it('should allow to set request gas limit for specific selector', async () => {
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            const method = manager.methods['setRequestGasLimit(bytes4,uint256)']
+            await method('0xffffffff', 200000, { from: user }).should.be.rejected
+            await method('0xffffffff', 200000, { from: owner }).should.be.fulfilled
+
+            expect(await manager.methods['requestGasLimit(bytes4)']('0xffffffff')).to.be.bignumber.equal('200000')
+            expect(await manager.methods['requestGasLimit()']()).to.be.bignumber.equal('1000000')
+          })
+
+          it('should use the custom gas limit when bridging tokens', async () => {
+            const tokenId1 = await mintNewNFT()
+            const tokenId2 = await mintNewNFT()
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+
+            const method = manager.methods['setRequestGasLimit(bytes4,uint256)']
+            await method(selectors.handleBridgedNFT, 200000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId2).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+            expect(events[0].returnValues.gas).to.be.equal('1000000')
+            expect(events[1].returnValues.gas).to.be.equal('1000000')
+            expect(events[2].returnValues.gas).to.be.equal('200000')
+          })
+
+          it('should allow to set request gas limit for specific selector and token', async () => {
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            const method = manager.methods['setRequestGasLimit(bytes4,address,uint256)']
+            await method('0xffffffff', token.address, 200000, { from: user }).should.be.rejected
+            await method('0xffffffff', token.address, 200000, { from: owner }).should.be.fulfilled
+
+            expect(
+              await manager.methods['requestGasLimit(bytes4,address)']('0xffffffff', token.address)
+            ).to.be.bignumber.equal('200000')
+            expect(await manager.methods['requestGasLimit(bytes4)']('0xffffffff')).to.be.bignumber.equal('0')
+            expect(await manager.methods['requestGasLimit()']()).to.be.bignumber.equal('1000000')
+          })
+
+          it('should use the custom gas limit when bridging specific token', async () => {
+            const tokenId1 = await mintNewNFT()
+            const tokenId2 = await mintNewNFT()
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            const method1 = manager.methods['setRequestGasLimit(bytes4,uint256)']
+            await method1(selectors.handleBridgedNFT, 100000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+
+            const method2 = manager.methods['setRequestGasLimit(bytes4,address,uint256)']
+            await method2(selectors.handleBridgedNFT, token.address, 200000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId2).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+            expect(events[0].returnValues.gas).to.be.equal('1000000')
+            expect(events[1].returnValues.gas).to.be.equal('100000')
+            expect(events[2].returnValues.gas).to.be.equal('200000')
+          })
+
+          describe('common gas limits setters', () => {
+            const token = otherSideToken1
+
+            it('should use setCommonRequestGasLimits', async () => {
+              const { setCommonRequestGasLimits } = manager
+              await setCommonRequestGasLimits([100, 50, 50, 99], { from: user }).should.be.rejected
+              await setCommonRequestGasLimits([10, 50, 50, 99], { from: owner }).should.be.rejected
+              await setCommonRequestGasLimits([100, 50, 50, 99], { from: owner }).should.be.fulfilled
+
+              const method = manager.methods['requestGasLimit(bytes4)']
+              expect(await method(selectors.deployAndHandleBridgedNFT)).to.be.bignumber.equal('100')
+              expect(await method(selectors.handleBridgedNFT)).to.be.bignumber.equal('50')
+              expect(await method(selectors.handleNativeNFT)).to.be.bignumber.equal('50')
+              expect(await method(selectors.fixFailedMessage)).to.be.bignumber.equal('99')
+            })
+
+            it('should use setBridgedTokenRequestGasLimits', async () => {
+              await manager.setBridgedTokenRequestGasLimits(token, [100], { from: user }).should.be.rejected
+              await manager.setBridgedTokenRequestGasLimits(token, [100], { from: owner }).should.be.fulfilled
+
+              const method = manager.methods['requestGasLimit(bytes4,address)']
+              expect(await method(selectors.handleNativeNFT, token)).to.be.bignumber.equal('100')
+            })
+
+            it('should use setNativeTokenRequestGasLimits', async () => {
+              const { setNativeTokenRequestGasLimits } = manager
+              await setNativeTokenRequestGasLimits(token, [100, 50], { from: user }).should.be.rejected
+              await setNativeTokenRequestGasLimits(token, [10, 50], { from: owner }).should.be.rejected
+              await setNativeTokenRequestGasLimits(token, [100, 50], { from: owner }).should.be.fulfilled
+
+              const method = manager.methods['requestGasLimit(bytes4,address)']
+              expect(await method(selectors.deployAndHandleBridgedNFT, token)).to.be.bignumber.equal('100')
+              expect(await method(selectors.handleBridgedNFT, token)).to.be.bignumber.equal('50')
+            })
+          })
+        })
+      } else {
+        describe('request gas limit', () => {
+          it('should allow to set default gas limit', async () => {
+            await contract.setRequestGasLimit(200000, { from: user }).should.be.rejected
+            await contract.setRequestGasLimit(200000, { from: owner }).should.be.fulfilled
+
+            expect(await contract.requestGasLimit()).to.be.bignumber.equal('200000')
+          })
+
+          it('should use the custom gas limit when bridging tokens', async () => {
+            const tokenId1 = await mintNewNFT()
+            const tokenId2 = await mintNewNFT()
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+
+            await contract.setRequestGasLimit(200000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId2).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(2)
+            expect(events[0].returnValues.gas).to.be.equal('1000000')
+            expect(events[1].returnValues.gas).to.be.equal('200000')
+          })
+        })
+      }
     })
 
     describe('native tokens', () => {

@@ -5,8 +5,14 @@ const {
   HomeNFTOmnibridge,
   ERC721BridgeToken,
   NFTForwardingRulesManager,
+  SelectorTokenGasLimitManager,
 } = require('../loadContracts')
-const { HOME_ERC721_TOKEN_IMAGE, HOME_FORWARDING_RULES_MANAGER } = require('../loadEnv')
+const {
+  HOME_AMB_BRIDGE,
+  HOME_MEDIATOR_REQUEST_GAS_LIMIT,
+  HOME_ERC721_TOKEN_IMAGE,
+  HOME_FORWARDING_RULES_MANAGER,
+} = require('../loadEnv')
 const { ZERO_ADDRESS } = require('../constants')
 
 async function deployHome() {
@@ -44,6 +50,20 @@ async function deployHome() {
     console.log('\n[Home] Using existing Forwarding Rules Manager: ', forwardingRulesManager)
   }
 
+  console.log(`\n[Home] Deploying gas limit manager contract with the following parameters:
+     HOME_AMB_BRIDGE: ${HOME_AMB_BRIDGE}
+     MEDIATOR: ${homeBridgeStorage.options.address}
+     HOME_MEDIATOR_REQUEST_GAS_LIMIT: ${HOME_MEDIATOR_REQUEST_GAS_LIMIT}
+   `)
+  const gasLimitManager = await deployContract(
+    SelectorTokenGasLimitManager,
+    [HOME_AMB_BRIDGE, homeBridgeStorage.options.address, HOME_MEDIATOR_REQUEST_GAS_LIMIT],
+    { nonce: nonce++ }
+  )
+  console.log('\n[Home] New Gas Limit Manager has been deployed: ', gasLimitManager.options.address)
+  console.log('[Home] Manual setup of request gas limits in the manager is recommended.')
+  console.log('[Home] Please, call setCommonRequestGasLimits on the Gas Limit Manager contract.')
+
   console.log('\n[Home] Deploying Bridge Mediator implementation\n')
   const homeBridgeImplementation = await deployContract(HomeNFTOmnibridge, [], {
     nonce: nonce++,
@@ -62,6 +82,7 @@ async function deployHome() {
   return {
     homeBridgeMediator: { address: homeBridgeStorage.options.address },
     tokenImage: { address: tokenImage },
+    gasLimitManager: { address: gasLimitManager.options.address },
     forwardingRulesManager: { address: forwardingRulesManager },
   }
 }
