@@ -144,6 +144,8 @@ abstract contract BasicNFTOmnibridge is
         address _recipient,
         uint256 _tokenId
     ) external onlyMediator {
+        require(isRegisteredAsNativeToken(_token));
+
         _setNativeTokenIsRegistered(_token, REGISTERED_AND_DEPLOYED);
 
         _handleTokens(_token, true, _recipient, _tokenId);
