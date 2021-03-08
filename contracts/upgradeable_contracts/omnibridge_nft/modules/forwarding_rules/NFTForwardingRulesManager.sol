@@ -18,6 +18,12 @@ contract NFTForwardingRulesManager is OwnableModule {
     // solhint-disable-next-line no-empty-blocks
     constructor(address _owner) OwnableModule(_owner) {}
 
+    /**
+     * @dev Tells the module interface version that this contract supports.
+     * @return major value of the version
+     * @return minor value of the version
+     * @return patch value of the version
+     */
     function getModuleInterfacesVersion()
         external
         pure
