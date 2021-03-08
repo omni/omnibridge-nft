@@ -18,6 +18,19 @@ contract NFTForwardingRulesManager is OwnableModule {
     // solhint-disable-next-line no-empty-blocks
     constructor(address _owner) OwnableModule(_owner) {}
 
+    function getModuleInterfacesVersion()
+        external
+        pure
+        override
+        returns (
+            uint64 major,
+            uint64 minor,
+            uint64 patch
+        )
+    {
+        return (2, 0, 0);
+    }
+
     /**
      * @dev Tells the destination lane for a particular bridge operation by checking several wildcard forwarding rules.
      * @param _token address of the token contract on the foreign side of the bridge.
@@ -50,7 +63,7 @@ contract NFTForwardingRulesManager is OwnableModule {
      * @param _token address of the token contract on the foreign side.
      * @param _enable true, if bridge operations for a given token should be forwarded to the oracle-driven lane.
      */
-    function setTokenForwardingRule(address _token, bool _enable) external {
+    function setRuleForTokenToPBO(address _token, bool _enable) external {
         require(_token != ANY_ADDRESS);
         _setForwardingRule(_token, ANY_ADDRESS, ANY_ADDRESS, _enable ? int256(1) : int256(0));
     }
@@ -62,7 +75,7 @@ contract NFTForwardingRulesManager is OwnableModule {
      * @param _sender address of the tokens sender on the home side of the bridge.
      * @param _enable true, if bridge operations for a given token and sender should be forwarded to the oracle-driven lane.
      */
-    function setSenderExceptionForTokenForwardingRule(
+    function setRuleForTokenAndSenderToPBO(
         address _token,
         address _sender,
         bool _enable
@@ -79,7 +92,7 @@ contract NFTForwardingRulesManager is OwnableModule {
      * @param _receiver address of the tokens receiver on the foreign side of the bridge.
      * @param _enable true, if bridge operations for a given token and receiver should be forwarded to the oracle-driven lane.
      */
-    function setReceiverExceptionForTokenForwardingRule(
+    function setRuleForTokenAndReceiverToPBO(
         address _token,
         address _receiver,
         bool _enable
@@ -93,9 +106,31 @@ contract NFTForwardingRulesManager is OwnableModule {
      * Updates the forwarding rule for the specific sender.
      * Only owner can call this method.
      * @param _sender address of the tokens sender on the home side.
+     * @param _enable true, if all bridge operations from a given sender should be forwarded to the oracle-driven lane.
+     */
+    function setRuleForSenderOfAnyTokenToPBO(address _sender, bool _enable) external {
+        require(_sender != ANY_ADDRESS);
+        _setForwardingRule(ANY_ADDRESS, _sender, ANY_ADDRESS, _enable ? int256(1) : int256(0));
+    }
+
+    /**
+     * Updates the forwarding rule for the specific receiver.
+     * Only owner can call this method.
+     * @param _receiver address of the tokens receiver on the foreign side.
+     * @param _enable true, if all bridge operations to a given receiver should be forwarded to the oracle-driven lane.
+     */
+    function setRuleForReceiverOfAnyTokenToPBO(address _receiver, bool _enable) external {
+        require(_receiver != ANY_ADDRESS);
+        _setForwardingRule(ANY_ADDRESS, ANY_ADDRESS, _receiver, _enable ? int256(1) : int256(0));
+    }
+
+    /**
+     * Updates the forwarding rule for the specific sender.
+     * Only owner can call this method.
+     * @param _sender address of the tokens sender on the home side.
      * @param _enable true, if all bridge operations from a given sender should be forwarded to the manual lane.
      */
-    function setSenderForwardingRule(address _sender, bool _enable) external {
+    function setRuleForSenderOfAnyTokenToPBU(address _sender, bool _enable) external {
         require(_sender != ANY_ADDRESS);
         _setForwardingRule(ANY_ADDRESS, _sender, ANY_ADDRESS, _enable ? int256(-1) : int256(0));
     }
@@ -106,7 +141,7 @@ contract NFTForwardingRulesManager is OwnableModule {
      * @param _receiver address of the tokens receiver on the foreign side.
      * @param _enable true, if all bridge operations to a given receiver should be forwarded to the manual lane.
      */
-    function setReceiverForwardingRule(address _receiver, bool _enable) external {
+    function setRuleForReceiverOfAnyTokenToPBU(address _receiver, bool _enable) external {
         require(_receiver != ANY_ADDRESS);
         _setForwardingRule(ANY_ADDRESS, ANY_ADDRESS, _receiver, _enable ? int256(-1) : int256(0));
     }

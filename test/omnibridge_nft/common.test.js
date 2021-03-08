@@ -961,43 +961,38 @@ function runTests(accounts, isHome) {
         it('should allow to set/update lane permissions', async () => {
           expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('0')
 
-          await manager.setTokenForwardingRule(token.address, true, { from: user }).should.be.rejected
-          await manager.setTokenForwardingRule(token.address, true, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenToPBO(token.address, true, { from: user }).should.be.rejected
+          await manager.setRuleForTokenToPBO(token.address, true, { from: owner }).should.be.fulfilled
 
           expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('1')
 
-          await manager.setTokenForwardingRule(token.address, false, { from: owner }).should.be.fulfilled
-          await manager.setSenderExceptionForTokenForwardingRule(token.address, user, true, { from: user }).should.be
-            .rejected
-          await manager.setSenderExceptionForTokenForwardingRule(token.address, user, true, { from: owner }).should.be
-            .fulfilled
+          await manager.setRuleForTokenToPBO(token.address, false, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenAndSenderToPBO(token.address, user, true, { from: user }).should.be.rejected
+          await manager.setRuleForTokenAndSenderToPBO(token.address, user, true, { from: owner }).should.be.fulfilled
 
           expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('1')
           expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('0')
 
-          await manager.setSenderExceptionForTokenForwardingRule(token.address, user, false, { from: owner }).should.be
-            .fulfilled
-          await manager.setReceiverExceptionForTokenForwardingRule(token.address, user, true, { from: user }).should.be
-            .rejected
-          await manager.setReceiverExceptionForTokenForwardingRule(token.address, user, true, { from: owner }).should.be
-            .fulfilled
+          await manager.setRuleForTokenAndSenderToPBO(token.address, user, false, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenAndReceiverToPBO(token.address, user, true, { from: user }).should.be.rejected
+          await manager.setRuleForTokenAndReceiverToPBO(token.address, user, true, { from: owner }).should.be.fulfilled
 
           expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
           expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('0')
 
-          await manager.setTokenForwardingRule(token.address, true, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenToPBO(token.address, true, { from: owner }).should.be.fulfilled
 
           expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('1')
 
-          await manager.setSenderForwardingRule(user2, true, { from: user }).should.be.rejected
-          await manager.setSenderForwardingRule(user2, true, { from: owner }).should.be.fulfilled
+          await manager.setRuleForSenderOfAnyTokenToPBU(user2, true, { from: user }).should.be.rejected
+          await manager.setRuleForSenderOfAnyTokenToPBU(user2, true, { from: owner }).should.be.fulfilled
 
           expect(await manager.destinationLane(token.address, user2, user)).to.be.bignumber.equal('-1')
           expect(await manager.destinationLane(token.address, user2, user)).to.be.bignumber.equal('-1')
           expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
 
-          await manager.setReceiverForwardingRule(user2, true, { from: user }).should.be.rejected
-          await manager.setReceiverForwardingRule(user2, true, { from: owner }).should.be.fulfilled
+          await manager.setRuleForReceiverOfAnyTokenToPBU(user2, true, { from: user }).should.be.rejected
+          await manager.setRuleForReceiverOfAnyTokenToPBU(user2, true, { from: owner }).should.be.fulfilled
 
           expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
           expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
@@ -1012,7 +1007,7 @@ function runTests(accounts, isHome) {
           await sendFunctions[0](tokenId1).should.be.fulfilled
           await contract.setForwardingRulesManager(manager.address, { from: owner }).should.be.fulfilled
           await sendFunctions[1](tokenId2).should.be.fulfilled
-          await manager.setTokenForwardingRule(token.address, true, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenToPBO(token.address, true, { from: owner }).should.be.fulfilled
           await sendFunctions[2](tokenId3).should.be.fulfilled
 
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })

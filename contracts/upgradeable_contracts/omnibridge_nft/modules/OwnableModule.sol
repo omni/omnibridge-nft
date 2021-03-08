@@ -1,12 +1,13 @@
 pragma solidity 0.7.5;
 
 import "@openzeppelin/contracts/utils/Address.sol";
+import "./VersionableModule.sol";
 
 /**
  * @title OwnableModule
  * @dev Common functionality for multi-token extension non-upgradeable module.
  */
-contract OwnableModule {
+abstract contract OwnableModule is VersionableModule {
     address public owner;
 
     /**
