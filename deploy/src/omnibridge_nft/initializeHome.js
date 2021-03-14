@@ -7,7 +7,6 @@ const {
   HOME_DAILY_LIMIT,
   FOREIGN_DAILY_LIMIT,
   HOME_AMB_BRIDGE,
-  HOME_MEDIATOR_REQUEST_GAS_LIMIT,
   HOME_BRIDGE_OWNER,
   HOME_UPGRADEABLE_ADMIN,
 } = require('../loadEnv')
@@ -19,9 +18,9 @@ async function initializeMediator({
     mediatorContract,
     dailyLimit,
     executionDailyLimit,
-    requestGasLimit,
     owner,
     tokenImage,
+    gasLimitManager,
     forwardingRulesManager,
   },
 }) {
@@ -30,9 +29,9 @@ async function initializeMediator({
     Mediator contract: ${mediatorContract},
     DAILY_LIMIT : ${dailyLimit} which is ${fromWei(dailyLimit)} in eth,
     EXECUTION_DAILY_LIMIT : ${executionDailyLimit} which is ${fromWei(executionDailyLimit)} in eth,
-    MEDIATOR_REQUEST_GAS_LIMIT : ${requestGasLimit},
     OWNER: ${owner},
     TOKEN_IMAGE: ${tokenImage},
+    GAS_LIMIT_MANAGER: ${gasLimitManager},
     FORWARDING_RULES_MANAGER: ${forwardingRulesManager}
     `)
 
@@ -42,7 +41,7 @@ async function initializeMediator({
       mediatorContract,
       dailyLimit,
       executionDailyLimit,
-      requestGasLimit,
+      gasLimitManager,
       owner,
       tokenImage,
       forwardingRulesManager
@@ -50,7 +49,7 @@ async function initializeMediator({
     .encodeABI()
 }
 
-async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRulesManager }) {
+async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRulesManager, gasLimitManager }) {
   let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
   const mediatorContract = new web3Home.eth.Contract(HomeNFTOmnibridge.abi, homeBridge)
 
@@ -61,7 +60,7 @@ async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRul
     params: {
       bridgeContract: HOME_AMB_BRIDGE,
       mediatorContract: foreignBridge,
-      requestGasLimit: HOME_MEDIATOR_REQUEST_GAS_LIMIT,
+      gasLimitManager,
       owner: HOME_BRIDGE_OWNER,
       dailyLimit: HOME_DAILY_LIMIT,
       executionDailyLimit: FOREIGN_DAILY_LIMIT,

@@ -1,13 +1,14 @@
 pragma solidity 0.7.5;
 
 import "./BasicNFTOmnibridge.sol";
+import "./components/common/GasLimitManager.sol";
 
 /**
  * @title ForeignNFTOmnibridge
  * @dev Foreign side implementation for multi-token ERC721 mediator intended to work on top of AMB bridge.
  * It is designed to be used as an implementation contract of EternalStorageProxy contract.
  */
-contract ForeignNFTOmnibridge is BasicNFTOmnibridge {
+contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
     /**
      * @dev Stores the initial parameters of the mediator.
      * @param _bridgeContract the address of the AMB bridge contract.

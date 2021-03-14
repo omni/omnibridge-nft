@@ -4,4 +4,5 @@ module.exports = {
   ForeignNFTOmnibridge: require(`../../build/contracts/ForeignNFTOmnibridge.json`),
   ERC721BridgeToken: require(`../../build/contracts/ERC721BridgeToken.json`),
   NFTForwardingRulesManager: require(`../../build/contracts/NFTForwardingRulesManager.json`),
+  SelectorTokenGasLimitManager: require(`../../build/contracts/SelectorTokenGasLimitManager.json`),
 }
