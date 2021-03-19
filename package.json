@@ -13,7 +13,9 @@
     "lint:js:fix": "eslint . --fix",
     "lint:sol": "solhint --max-warnings 0 \"contracts/**/*.sol\"",
     "lint:sol:prettier:fix": "prettier --write \"contracts/**/*.sol\"",
-    "deploy": "node deploy/deploy.js"
+    "deploy": "node deploy/deploy.js",
+    "e2e-tests:local": "./e2e-tests/run-tests.sh local",
+    "e2e-tests:public": "./e2e-tests/run-tests.sh"
   },
   "dependencies": {
     "axios": "^0.21.0",
