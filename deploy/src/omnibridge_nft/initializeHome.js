@@ -1,34 +1,16 @@
-const { fromWei } = require('web3').utils
 const { web3Home, deploymentAddress } = require('../web3')
 const { EternalStorageProxy, HomeNFTOmnibridge } = require('../loadContracts')
 const { sendRawTxHome, transferProxyOwnership } = require('../deploymentUtils')
 
-const {
-  HOME_DAILY_LIMIT,
-  FOREIGN_DAILY_LIMIT,
-  HOME_AMB_BRIDGE,
-  HOME_BRIDGE_OWNER,
-  HOME_UPGRADEABLE_ADMIN,
-} = require('../loadEnv')
+const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN } = require('../loadEnv')
 
-async function initializeMediator({
+function initializeMediator({
   contract,
-  params: {
-    bridgeContract,
-    mediatorContract,
-    dailyLimit,
-    executionDailyLimit,
-    owner,
-    tokenImage,
-    gasLimitManager,
-    forwardingRulesManager,
-  },
+  params: { bridgeContract, mediatorContract, owner, tokenImage, gasLimitManager, forwardingRulesManager },
 }) {
   console.log(`
     AMB contract: ${bridgeContract},
     Mediator contract: ${mediatorContract},
-    DAILY_LIMIT : ${dailyLimit} which is ${fromWei(dailyLimit)} in eth,
-    EXECUTION_DAILY_LIMIT : ${executionDailyLimit} which is ${fromWei(executionDailyLimit)} in eth,
     OWNER: ${owner},
     TOKEN_IMAGE: ${tokenImage},
     GAS_LIMIT_MANAGER: ${gasLimitManager},
@@ -36,16 +18,7 @@ async function initializeMediator({
     `)
 
   return contract.methods
-    .initialize(
-      bridgeContract,
-      mediatorContract,
-      dailyLimit,
-      executionDailyLimit,
-      gasLimitManager,
-      owner,
-      tokenImage,
-      forwardingRulesManager
-    )
+    .initialize(bridgeContract, mediatorContract, gasLimitManager, owner, tokenImage, forwardingRulesManager)
     .encodeABI()
 }
 
@@ -55,15 +28,13 @@ async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRul
 
   console.log('\n[Home] Initializing Bridge Mediator with following parameters:')
 
-  const initializeMediatorData = await initializeMediator({
+  const initializeMediatorData = initializeMediator({
     contract: mediatorContract,
     params: {
       bridgeContract: HOME_AMB_BRIDGE,
       mediatorContract: foreignBridge,
       gasLimitManager,
       owner: HOME_BRIDGE_OWNER,
-      dailyLimit: HOME_DAILY_LIMIT,
-      executionDailyLimit: FOREIGN_DAILY_LIMIT,
       tokenImage,
       forwardingRulesManager,
     },

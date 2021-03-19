@@ -13,8 +13,6 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
      * @dev Stores the initial parameters of the mediator.
      * @param _bridgeContract the address of the AMB bridge contract.
      * @param _mediatorContract the address of the mediator contract on the other network.
-     * @param _dailyLimit daily limit for outgoing transfers
-     * @param _executionDailyLimit daily limit for ingoing bridge operations
      * @param _gasLimitManager the gas limit manager contract address.
      * @param _owner address of the owner of the mediator contract.
      * @param _image address of the ERC721 token image.
@@ -23,8 +21,6 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
     function initialize(
         address _bridgeContract,
         address _mediatorContract,
-        uint256 _dailyLimit,
-        uint256 _executionDailyLimit,
         address _gasLimitManager,
         address _owner,
         address _image,
@@ -34,8 +30,6 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
 
         _setBridgeContract(_bridgeContract);
         _setMediatorContractOnOtherSide(_mediatorContract);
-        _setDailyLimit(address(0), _dailyLimit);
-        _setExecutionDailyLimit(address(0), _executionDailyLimit);
         _setGasLimitManager(_gasLimitManager);
         _setOwner(_owner);
         _setTokenImage(_image);

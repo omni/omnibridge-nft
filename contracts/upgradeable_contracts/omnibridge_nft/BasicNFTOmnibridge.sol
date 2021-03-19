@@ -71,7 +71,6 @@ abstract contract BasicNFTOmnibridge is
             }
             bridgedToken = address(new ERC721TokenProxy(tokenImage(), _transformName(name), symbol, address(this)));
             _setTokenAddressPair(_token, bridgedToken);
-            _initToken(bridgedToken);
         }
 
         _handleTokens(bridgedToken, false, _recipient, _tokenId);
@@ -129,7 +128,6 @@ abstract contract BasicNFTOmnibridge is
         require(bridgedTokenAddress(_nativeToken) == address(0));
 
         _setTokenAddressPair(_nativeToken, _bridgedToken);
-        _initToken(_bridgedToken);
     }
 
     /**
@@ -170,7 +168,6 @@ abstract contract BasicNFTOmnibridge is
     ) internal override {
         if (!isTokenRegistered(_token)) {
             require(IERC721(_token).ownerOf(_tokenId) == address(this));
-            _initToken(_token);
             _setNativeTokenIsRegistered(_token, REGISTERED);
         }
 
@@ -257,8 +254,7 @@ abstract contract BasicNFTOmnibridge is
         address _recipient,
         uint256 _tokenId
     ) internal {
-        require(withinExecutionLimit(_token));
-        addTotalExecutedPerDay(_token);
+        require(isTokenExecutionAllowed(_token));
 
         _releaseToken(_token, _isNative, _recipient, _tokenId);
 
@@ -316,23 +312,13 @@ abstract contract BasicNFTOmnibridge is
         address _sender,
         uint256 _tokenId
     ) internal {
-        require(withinLimit(_token));
-        addTotalSpentPerDay(_token);
+        require(isTokenBridgingAllowed(_token));
 
         setMessageToken(_messageId, _token);
         setMessageRecipient(_messageId, _sender);
         setMessageValue(_messageId, _tokenId);
 
         emit TokensBridgingInitiated(_token, _sender, _tokenId, _messageId);
-    }
-
-    /**
-     * @dev Internal function for initializing newly bridged token related information.
-     * @param _token address of the token contract.
-     */
-    function _initToken(address _token) internal {
-        _setDailyLimit(_token, dailyLimit(address(0)));
-        _setExecutionDailyLimit(_token, executionDailyLimit(address(0)));
     }
 
     /**

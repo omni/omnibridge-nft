@@ -44,8 +44,6 @@ switch (BRIDGE_MODE) {
       FOREIGN_AMB_BRIDGE: addressValidator(),
       HOME_MEDIATOR_REQUEST_GAS_LIMIT: bigNumValidator(),
       FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT: bigNumValidator(),
-      FOREIGN_DAILY_LIMIT: bigNumValidator(),
-      HOME_DAILY_LIMIT: bigNumValidator(),
       HOME_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       FOREIGN_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       HOME_FORWARDING_RULES_MANAGER: optionalAddressOrFalseValidator(),

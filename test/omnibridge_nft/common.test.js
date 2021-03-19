@@ -32,7 +32,6 @@ function runTests(accounts, isHome) {
   let contract
   let token
   let ambBridgeContract
-  let currentDay
   let tokenImage
   const owner = accounts[0]
   const user = accounts[1]
@@ -64,8 +63,6 @@ function runTests(accounts, isHome) {
     const args = [
       opts.ambContract || ambBridgeContract.address,
       opts.otherSideMediator || otherSideMediator,
-      opts.dailyLimit || 20,
-      opts.executionDailyLimit || 10,
       isHome ? opts.gasLimitManager || ZERO_ADDRESS : opts.requestGasLimit || 1000000,
       opts.owner || owner,
       opts.tokenImage || tokenImage.address,
@@ -120,7 +117,6 @@ function runTests(accounts, isHome) {
     contract = await Mediator.new()
     ambBridgeContract = await AMBMock.new()
     token = await ERC721BridgeToken.new('TEST', 'TST', owner)
-    currentDay = await contract.getCurrentDay()
   })
 
   describe('getBridgeMode', () => {
@@ -141,8 +137,6 @@ function runTests(accounts, isHome) {
       expect(await contract.isInitialized()).to.be.equal(false)
       expect(await contract.bridgeContract()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(ZERO_ADDRESS)
-      expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
-      expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
       expect(await contract.owner()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.tokenImage()).to.be.equal(ZERO_ADDRESS)
 
@@ -167,7 +161,7 @@ function runTests(accounts, isHome) {
       // token factory is not a contract
       await initialize({ tokenImage: owner }).should.be.rejected
 
-      const { logs } = await initialize().should.be.fulfilled
+      await initialize().should.be.fulfilled
 
       // already initialized
       await initialize().should.be.rejected
@@ -176,8 +170,6 @@ function runTests(accounts, isHome) {
       expect(await contract.isInitialized()).to.be.equal(true)
       expect(await contract.bridgeContract()).to.be.equal(ambBridgeContract.address)
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(otherSideMediator)
-      expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('20')
-      expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('10')
       if (isHome) {
         expect(await contract.gasLimitManager()).to.be.equal(ZERO_ADDRESS)
       } else {
@@ -185,9 +177,6 @@ function runTests(accounts, isHome) {
       }
       expect(await contract.owner()).to.be.equal(owner)
       expect(await contract.tokenImage()).to.be.equal(tokenImage.address)
-
-      expectEventInLogs(logs, 'ExecutionDailyLimitChanged', { token: ZERO_ADDRESS, newLimit: '10' })
-      expectEventInLogs(logs, 'DailyLimitChanged', { token: ZERO_ADDRESS, newLimit: '20' })
     })
   })
 
@@ -200,45 +189,55 @@ function runTests(accounts, isHome) {
     })
 
     describe('update mediator parameters', () => {
-      describe('limits', () => {
-        it('should allow to update default daily limits', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, 10, { from: user }).should.be.rejected
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 5, { from: user }).should.be.rejected
-          await contract.setDailyLimit(ZERO_ADDRESS, 10, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 5, { from: owner }).should.be.fulfilled
+      describe('disable token operations', () => {
+        it('should allow to disable bridging operations globally', async () => {
+          await contract.disableTokenBridging(ZERO_ADDRESS, true, { from: user }).should.be.rejected
+          await contract.disableTokenExecution(ZERO_ADDRESS, true, { from: user }).should.be.rejected
 
-          expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('10')
-          expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('5')
+          const receipt1 = await contract.disableTokenBridging(ZERO_ADDRESS, true, { from: owner }).should.be.fulfilled
+          expectEventInLogs(receipt1.logs, 'TokenBridgingDisabled', { token: ZERO_ADDRESS, disabled: true })
 
-          await contract.setDailyLimit(ZERO_ADDRESS, ZERO, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO, { from: owner }).should.be.fulfilled
+          expect(await contract.isTokenBridgingAllowed(ZERO_ADDRESS)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(ZERO_ADDRESS)).to.be.equal(true)
 
-          expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
-          expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
+          const receipt2 = await contract.disableTokenExecution(ZERO_ADDRESS, true, { from: owner }).should.be.fulfilled
+          expectEventInLogs(receipt2.logs, 'TokenExecutionDisabled', { token: ZERO_ADDRESS, disabled: true })
+
+          expect(await contract.isTokenBridgingAllowed(ZERO_ADDRESS)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(ZERO_ADDRESS)).to.be.equal(false)
+
+          const receipt3 = await contract.disableTokenBridging(ZERO_ADDRESS, false, { from: owner }).should.be.fulfilled
+          const receipt4 = await contract.disableTokenExecution(ZERO_ADDRESS, false, { from: owner }).should.be
+            .fulfilled
+          expectEventInLogs(receipt3.logs, 'TokenBridgingDisabled', { token: ZERO_ADDRESS, disabled: false })
+          expectEventInLogs(receipt4.logs, 'TokenExecutionDisabled', { token: ZERO_ADDRESS, disabled: false })
+
+          expect(await contract.isTokenBridgingAllowed(ZERO_ADDRESS)).to.be.equal(true)
+          expect(await contract.isTokenExecutionAllowed(ZERO_ADDRESS)).to.be.equal(true)
         })
 
-        it('should only allow to update parameters for known tokens', async () => {
-          await contract.setDailyLimit(token.address, 10, { from: owner }).should.be.rejected
-          await contract.setExecutionDailyLimit(token.address, 5, { from: owner }).should.be.rejected
+        it('should allow to disable operations for known tokens', async () => {
+          await contract.disableTokenBridging(token.address, true, { from: owner }).should.be.rejected
+          await contract.disableTokenExecution(token.address, true, { from: owner }).should.be.rejected
 
           await token.safeTransferFrom(user, contract.address, await mintNewNFT(), { from: user }).should.be.fulfilled
 
-          await contract.setDailyLimit(token.address, 10, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(token.address, 5, { from: owner }).should.be.fulfilled
+          await contract.disableTokenBridging(token.address, true, { from: owner }).should.be.fulfilled
+          await contract.disableTokenExecution(token.address, true, { from: owner }).should.be.fulfilled
 
-          expect(await contract.dailyLimit(token.address)).to.be.bignumber.equal('10')
-          expect(await contract.executionDailyLimit(token.address)).to.be.bignumber.equal('5')
+          expect(await contract.isTokenBridgingAllowed(token.address)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(token.address)).to.be.equal(false)
 
           const args = [otherSideToken1, 'Test', 'TST', user, 1, uriFor(1)]
           const data = contract.contract.methods.deployAndHandleBridgedNFT(...args).encodeABI()
           expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
           const bridgedToken = await contract.bridgedTokenAddress(otherSideToken1)
 
-          await contract.setDailyLimit(bridgedToken, 10, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(bridgedToken, 5, { from: owner }).should.be.fulfilled
+          await contract.disableTokenBridging(bridgedToken, true, { from: owner }).should.be.fulfilled
+          await contract.disableTokenExecution(bridgedToken, true, { from: owner }).should.be.fulfilled
 
-          expect(await contract.dailyLimit(bridgedToken)).to.be.bignumber.equal('10')
-          expect(await contract.executionDailyLimit(bridgedToken)).to.be.bignumber.equal('5')
+          expect(await contract.isTokenBridgingAllowed(bridgedToken)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(bridgedToken)).to.be.equal(false)
         })
       })
 
@@ -429,15 +428,6 @@ function runTests(accounts, isHome) {
     })
 
     describe('native tokens', () => {
-      describe('initialization', () => {
-        it(`should initialize limits`, async () => {
-          await sendFunctions[0]().should.be.fulfilled
-
-          expect(await contract.dailyLimit(token.address)).to.be.bignumber.equal('20')
-          expect(await contract.executionDailyLimit(token.address)).to.be.bignumber.equal('10')
-        })
-      })
-
       describe('tokens relay', () => {
         for (const send of sendFunctions) {
           it(`should make calls to deployAndHandleBridgedNFT and handleBridgedNFT using ${send.name}`, async () => {
@@ -484,7 +474,6 @@ function runTests(accounts, isHome) {
             expect(args[2]).to.be.equal(tokenId1.toString())
             expect(args[3]).to.be.equal(uriFor(tokenId1))
 
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('3')
             expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(true)
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
             expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
@@ -503,23 +492,35 @@ function runTests(accounts, isHome) {
           })
         }
 
-        it('should respect global shutdown', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+        it('should respect global bridging restrictions', async () => {
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
           for (const send of sendFunctions) {
             await send().should.be.rejected
           }
-          await contract.setDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
           for (const send of sendFunctions) {
             await send().should.be.fulfilled
           }
         })
 
-        it('should respect limits', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, 3).should.be.fulfilled
+        it('should respect per-token bridging restriction', async () => {
           await sendFunctions[0]().should.be.fulfilled
-          await sendFunctions[0]().should.be.fulfilled
-          await sendFunctions[0]().should.be.fulfilled
+
+          await contract.disableTokenBridging(token.address, true).should.be.fulfilled
+
           await sendFunctions[0]().should.be.rejected
+
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
+
+          await sendFunctions[0]().should.be.rejected
+
+          await contract.disableTokenBridging(token.address, false).should.be.fulfilled
+
+          await sendFunctions[0]().should.be.rejected
+
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
+
+          await sendFunctions[0]().should.be.fulfilled
         })
 
         describe('fixFailedMessage', () => {
@@ -609,14 +610,11 @@ function runTests(accounts, isHome) {
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(false)
             expect(await contract.mediatorOwns(token.address, tokenId3)).to.be.equal(false)
             expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('3')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('1')
             const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(1)
           })
 
           it('should allow to fix extra mediator balance', async () => {
-            await contract.setDailyLimit(token.address, 2).should.be.fulfilled
-
             await contract.fixMediatorBalance(token.address, owner, tokenId2, { from: user }).should.be.rejected
             await contract.fixMediatorBalance(ZERO_ADDRESS, owner, tokenId2, { from: owner }).should.be.rejected
             await contract.fixMediatorBalance(token.address, ZERO_ADDRESS, tokenId2, { from: owner }).should.be.rejected
@@ -626,7 +624,6 @@ function runTests(accounts, isHome) {
 
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
             expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('3')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
             const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(2)
             const { data } = events[1].returnValues
@@ -645,21 +642,6 @@ function runTests(accounts, isHome) {
             expect(events.length).to.be.equal(3)
             expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
             expect(events[2].returnValues.data.slice(0, 10)).to.be.equal(selectors.handleBridgedNFT)
-          })
-
-          it('should allow to fix extra mediator balance with respect to limits', async () => {
-            await contract.setDailyLimit(token.address, 2).should.be.fulfilled
-
-            await contract.fixMediatorBalance(token.address, owner, tokenId2, { from: owner }).should.be.fulfilled
-            await contract.fixMediatorBalance(token.address, owner, tokenId3, { from: owner }).should.be.rejected
-
-            await contract.setDailyLimit(token.address, 5).should.be.fulfilled
-
-            await contract.fixMediatorBalance(token.address, owner, tokenId3, { from: owner }).should.be.fulfilled
-
-            expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(true)
-            expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
-            expect(await contract.mediatorOwns(token.address, tokenId3)).to.be.equal(true)
           })
         })
       })
@@ -688,7 +670,6 @@ function runTests(accounts, isHome) {
 
           expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
 
-          expect(await contract.totalExecutedPerDay(token.address, currentDay)).to.be.bignumber.equal('1')
           expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(false)
           expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
           expect(await token.balanceOf(user)).to.be.bignumber.equal('1')
@@ -712,17 +693,17 @@ function runTests(accounts, isHome) {
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
         })
 
-        it('should not allow to operate when global shutdown is enabled', async () => {
+        it('should not allow to operate when execution is disabled globally', async () => {
           const tokenId1 = await mintNewNFT()
           await sendFunctions[0](tokenId1).should.be.fulfilled
 
           const data = await contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, true).should.be.fulfilled
 
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
           expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
         })
@@ -787,7 +768,6 @@ function runTests(accounts, isHome) {
     describe('bridged tokens', () => {
       describe('tokens relay', () => {
         beforeEach(async () => {
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
           const args = [otherSideToken1, 'Test', 'TST', user, 1, '']
           const deployData = contract.contract.methods.deployAndHandleBridgedNFT(...args).encodeABI()
           expect(await executeMessageCall(exampleMessageId, deployData)).to.be.equal(true)
@@ -825,7 +805,6 @@ function runTests(accounts, isHome) {
 
             expect(dataType).to.be.equal('0')
             expect(dataType2).to.be.equal('0')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
             expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
             expect(await token.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
 
@@ -842,25 +821,33 @@ function runTests(accounts, isHome) {
           })
         }
 
-        it('should respect global shutdown', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+        it('should respect global execution restriction', async () => {
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
           for (const send of sendFunctions) {
             await send(1).should.be.rejected
           }
-          await contract.setDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
           await sendFunctions[0](1).should.be.fulfilled
         })
 
-        it('should respect limits', async () => {
-          const bridgeData1 = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 2, '').encodeABI()
-          const bridgeData2 = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 3, '').encodeABI()
-          expect(await executeMessageCall(exampleMessageId, bridgeData1)).to.be.equal(true)
-          expect(await executeMessageCall(exampleMessageId, bridgeData2)).to.be.equal(true)
+        it('should respect per-token execution restriction', async () => {
+          const bridgeData = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 2, '').encodeABI()
+          expect(await executeMessageCall(exampleMessageId, bridgeData)).to.be.equal(true)
 
-          await contract.setDailyLimit(token.address, 2).should.be.fulfilled
           await sendFunctions[0](1).should.be.fulfilled
+
+          await contract.disableTokenBridging(token.address, true).should.be.fulfilled
+
+          await sendFunctions[0](2).should.be.rejected
+
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
+
+          await sendFunctions[0](2).should.be.rejected
+
+          await contract.disableTokenBridging(token.address, false).should.be.fulfilled
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
+
           await sendFunctions[0](2).should.be.fulfilled
-          await sendFunctions[0](3).should.be.rejected
         })
 
         describe('fixFailedMessage', () => {
@@ -927,7 +914,6 @@ function runTests(accounts, isHome) {
           expect(await deployedToken.symbol()).to.be.equal('TST')
           expect(await contract.nativeTokenAddress(bridgedToken)).to.be.equal(nativeToken)
           expect(await contract.bridgedTokenAddress(nativeToken)).to.be.equal(bridgedToken)
-          expect(await contract.totalExecutedPerDay(deployedToken.address, currentDay)).to.be.bignumber.equal('1')
           expect(await deployedToken.ownerOf(1)).to.be.bignumber.equal(user)
           expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
           expect(await deployedToken.tokenURI(1)).to.be.equal(uriFor(1))
@@ -977,15 +963,15 @@ function runTests(accounts, isHome) {
           expect(await deployedToken.symbol()).to.be.equal('Test')
         })
 
-        it('should not allow to operate when global shutdown is enabled', async () => {
+        it('should not allow to operate when execution is disabled globally', async () => {
           const args = [otherSideToken1, 'Test', 'TST', user, 1, '']
           const data = contract.contract.methods.deployAndHandleBridgedNFT(...args).encodeABI()
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, true).should.be.fulfilled
 
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
           expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
         })
@@ -1005,7 +991,6 @@ function runTests(accounts, isHome) {
           expect(nativeToken).to.be.equal(otherSideToken1)
           deployedToken = await ERC721BridgeToken.at(bridgedToken)
 
-          expect(await contract.totalExecutedPerDay(deployedToken.address, currentDay)).to.be.bignumber.equal('1')
           expect(await deployedToken.balanceOf(user)).to.be.bignumber.equal('1')
           expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
           expect(await contract.mediatorOwns(deployedToken.address, 1)).to.be.equal(false)
@@ -1026,7 +1011,6 @@ function runTests(accounts, isHome) {
 
           expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
 
-          expect(await contract.totalExecutedPerDay(deployedToken.address, currentDay)).to.be.bignumber.equal('2')
           expect(await contract.mediatorOwns(deployedToken.address, 2)).to.be.equal(false)
           expect(await deployedToken.balanceOf(user)).to.be.bignumber.equal('2')
           expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
@@ -1046,14 +1030,14 @@ function runTests(accounts, isHome) {
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
         })
 
-        it('should not allow to operate when global shutdown is enabled', async () => {
+        it('should not allow to operate when execution is disabled globally', async () => {
           const data = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 2, '').encodeABI()
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, true).should.be.fulfilled
 
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
           expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
         })
