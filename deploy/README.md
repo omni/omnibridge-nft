@@ -53,9 +53,6 @@ HOME_RPC_URL=https://core.poa.network
 HOME_BRIDGE_OWNER=0x
 # Address on Home network with permissions to upgrade the bridge contract
 HOME_UPGRADEABLE_ADMIN=0x
-# The default daily limit in number of tokens. As soon as this limit is exceeded, any
-# transaction which requests to relay assets will fail.
-HOME_DAILY_LIMIT=100
 
 # The RPC channel to a Foreign node able to handle deployment/configuration
 # transactions.
@@ -66,9 +63,6 @@ FOREIGN_BRIDGE_OWNER=0x
 # Address on Foreign network with permissions to upgrade the bridge contract and the
 # bridge validator contract.
 FOREIGN_UPGRADEABLE_ADMIN=0x
-# The default daily limit in number of tokens. As soon as this limit is exceeded, any
-# transaction requesting to relay assets will fail.
-FOREIGN_DAILY_LIMIT=100
 
 # The address of the existing AMB bridge in the Home network that will be used to pass messages
 # to the Foreign network.
