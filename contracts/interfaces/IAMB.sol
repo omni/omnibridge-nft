@@ -6,7 +6,7 @@ interface IAMB {
     event CollectedSignatures(
         address authorityResponsibleForRelay,
         bytes32 messageHash,
-        uint256 NumberOfCollectedSignatures
+        uint256 numberOfCollectedSignatures
     );
     event AffirmationCompleted(
         address indexed sender,
