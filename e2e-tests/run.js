@@ -214,12 +214,11 @@ function makeGetBridgedToken(web3, mediator, options) {
 function makeWithDisabledExecution(mediator, owner) {
   return async (token, f) => {
     const tokenAddr = toAddress(token)
-    const limit = await mediator.methods.executionDailyLimit(tokenAddr).call()
     console.log(`Disabling execution for ${tokenAddr}`)
-    await mediator.methods.setExecutionDailyLimit(tokenAddr, 0).send({ from: owner })
+    await mediator.methods.disableTokenExecution(tokenAddr, true).send({ from: owner })
     await f().finally(() => {
       console.log(`Enabling back execution for ${tokenAddr}`)
-      return mediator.methods.setExecutionDailyLimit(tokenAddr, limit).send({ from: owner })
+      return mediator.methods.disableTokenExecution(tokenAddr, false).send({ from: owner })
     })
   }
 }
