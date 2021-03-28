@@ -12,6 +12,7 @@ TOKEN_CONTRACTS_DIR=contracts/tokens
 
 echo "Flattening common bridge contracts"
 ${FLATTENER} contracts/upgradeability/EternalStorageProxy.sol > flats/EternalStorageProxy_flat.sol
+${FLATTENER} contracts/upgradeability/OwnedUpgradeabilityProxy.sol > flats/OwnedUpgradeabilityProxy_flat.sol
 
 echo "Flattening contracts related to NFT Omnibridge"
 ${FLATTENER} ${BRIDGE_CONTRACTS_DIR}/omnibridge_nft/HomeNFTOmnibridge.sol > flats/HomeNFTOmnibridge_flat.sol

@@ -15,8 +15,15 @@ contract NFTForwardingRulesManager is OmnibridgeModule {
 
     event ForwardingRuleUpdated(address token, address sender, address receiver, int256 lane);
 
-    // solhint-disable-next-line no-empty-blocks
-    constructor(IOwnable _mediator) OmnibridgeModule(_mediator) {}
+    /**
+     * @dev Initializes this module contract. Intended to be called only once through the proxy pattern.
+     * @param _mediator address of the Omnibridge contract working with this module.
+     */
+    function initialize(IOwnable _mediator) external {
+        require(address(mediator) == address(0));
+
+        mediator = _mediator;
+    }
 
     /**
      * @dev Tells the module interface version that this contract supports.

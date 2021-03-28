@@ -1,7 +1,8 @@
 const { web3Home, deploymentAddress } = require('../web3')
-const { deployContract, upgradeProxy } = require('../deploymentUtils')
+const { deployContract, upgradeProxy, upgradeProxyAndCall } = require('../deploymentUtils')
 const {
   EternalStorageProxy,
+  OwnedUpgradeabilityProxy,
   HomeNFTOmnibridge,
   ERC721BridgeToken,
   NFTForwardingRulesManager,
@@ -14,6 +15,28 @@ const {
   HOME_FORWARDING_RULES_MANAGER,
 } = require('../loadEnv')
 const { ZERO_ADDRESS } = require('../constants')
+
+async function deployThroughProxy(contract, args, nonce) {
+  console.log(`\n[Home] Deploying ${contract.contractName} proxy\n`)
+  const proxy = await deployContract(OwnedUpgradeabilityProxy, [], { nonce })
+  console.log(`[Home] ${contract.contractName} proxy: `, proxy.options.address)
+
+  console.log(`\n[Home] Deploying ${contract.contractName} implementation\n`)
+  const impl = await deployContract(contract, [], { nonce: nonce + 1 })
+  console.log(`[Home] ${contract.contractName} implementation: `, impl.options.address)
+
+  console.log(`\n[Home] Hooking up ${contract.contractName} proxy to implementation`)
+  await upgradeProxyAndCall({
+    proxy,
+    implementationAddress: impl.options.address,
+    version: '1',
+    nonce: nonce + 2,
+    data: impl.methods.initialize(...args).encodeABI(),
+  })
+
+  impl.options.address = proxy.options.address
+  return impl
+}
 
 async function deployHome() {
   let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
@@ -41,9 +64,8 @@ async function deployHome() {
     console.log(`\n[Home] Deploying Forwarding Rules Manager contract with the following parameters:
     MEDIATOR: ${homeBridgeStorage.options.address}
     `)
-    const manager = await deployContract(NFTForwardingRulesManager, [homeBridgeStorage.options.address], {
-      nonce: nonce++,
-    })
+    const manager = await deployThroughProxy(NFTForwardingRulesManager, [homeBridgeStorage.options.address], nonce)
+    nonce += 3
     forwardingRulesManager = manager.options.address
     console.log('\n[Home] New Forwarding Rules Manager has been deployed: ', forwardingRulesManager)
   } else {
@@ -55,11 +77,12 @@ async function deployHome() {
      MEDIATOR: ${homeBridgeStorage.options.address}
      HOME_MEDIATOR_REQUEST_GAS_LIMIT: ${HOME_MEDIATOR_REQUEST_GAS_LIMIT}
    `)
-  const gasLimitManager = await deployContract(
+  const gasLimitManager = await deployThroughProxy(
     SelectorTokenGasLimitManager,
     [HOME_AMB_BRIDGE, homeBridgeStorage.options.address, HOME_MEDIATOR_REQUEST_GAS_LIMIT],
-    { nonce: nonce++ }
+    nonce
   )
+  nonce += 3
   console.log('\n[Home] New Gas Limit Manager has been deployed: ', gasLimitManager.options.address)
   console.log('[Home] Manual setup of request gas limits in the manager is recommended.')
   console.log('[Home] Please, call setCommonRequestGasLimits on the Gas Limit Manager contract.')

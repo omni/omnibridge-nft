@@ -12,14 +12,6 @@ abstract contract OmnibridgeModule is VersionableModule {
     IOwnable public mediator;
 
     /**
-     * @dev Initializes this contract.
-     * @param _mediator address of the Omnibridge mediator contract that is allowed to perform additional actions on the particular module.
-     */
-    constructor(IOwnable _mediator) {
-        mediator = _mediator;
-    }
-
-    /**
      * @dev Throws if sender is not the owner of this contract.
      */
     modifier onlyOwner {

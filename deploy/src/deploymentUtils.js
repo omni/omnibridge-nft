@@ -135,6 +135,14 @@ async function upgradeProxy({ proxy, implementationAddress, version, nonce, netw
   })
 }
 
+async function upgradeProxyAndCall({ proxy, implementationAddress, version, data, nonce, network }) {
+  await sendTx(network, {
+    data: proxy.methods.upgradeToAndCall(version, implementationAddress, data).encodeABI(),
+    nonce,
+    to: proxy.options.address,
+  })
+}
+
 async function transferProxyOwnership({ proxy, newOwner, nonce, network }) {
   await sendTx(network, {
     data: proxy.methods.transferProxyOwnership(newOwner).encodeABI(),
@@ -169,6 +177,7 @@ module.exports = {
   sendRawTxHome,
   sendRawTxForeign,
   upgradeProxy,
+  upgradeProxyAndCall,
   transferProxyOwnership,
   transferOwnership,
   setBridgeContract,
