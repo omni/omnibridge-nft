@@ -23,7 +23,8 @@ const failedMessageId = '0x2ebc2ccc755acc8eaf9252e19573af708d644ab63a39619adb080
 
 function runTests(accounts, isHome) {
   const Mediator = isHome ? HomeNFTOmnibridge : ForeignNFTOmnibridge
-  const modifyName = (name) => name + (isHome ? ' on xDai' : ' on Mainnet')
+  const SUFFIX = ' on Testnet'
+  const modifyName = (name) => name + SUFFIX
   const uriFor = (tokenId) => `https://example.com/${tokenId}`
   const otherSideMediator = '0x1e33FBB006F47F78704c954555a5c52C2A7f409D'
   const otherSideToken1 = '0xAfb77d544aFc1e2aD3dEEAa20F3c80859E7Fc3C9'
@@ -114,7 +115,7 @@ function runTests(accounts, isHome) {
   })
 
   beforeEach(async () => {
-    contract = await Mediator.new()
+    contract = await Mediator.new(SUFFIX)
     ambBridgeContract = await AMBMock.new()
     token = await ERC721BridgeToken.new('TEST', 'TST', owner)
   })

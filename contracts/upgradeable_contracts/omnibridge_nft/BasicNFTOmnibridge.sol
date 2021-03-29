@@ -33,6 +33,21 @@ abstract contract BasicNFTOmnibridge is
     NFTMediatorBalanceStorage,
     FailedMessagesProcessor
 {
+    // Workaround for storing variable up-to-32 bytes suffix
+    uint256 private immutable SUFFIX_SIZE;
+    bytes32 private immutable SUFFIX;
+
+    // Since contract is intended to be deployed under EternalStorageProxy, only constant and immutable variables can be set here
+    constructor(string memory _suffix) {
+        require(bytes(_suffix).length <= 32);
+        bytes32 suffix;
+        assembly {
+            suffix := mload(add(_suffix, 32))
+        }
+        SUFFIX = suffix;
+        SUFFIX_SIZE = bytes(_suffix).length;
+    }
+
     /**
      * @dev Checks if specified token was already bridged at least once and it is registered in the Omnibridge.
      * @param _token address of the token contract.
@@ -337,5 +352,17 @@ abstract contract BasicNFTOmnibridge is
         return true;
     }
 
-    function _transformName(string memory _name) internal pure virtual returns (string memory);
+    /**
+     * @dev Internal function for transforming the bridged token name. Appends a side-specific suffix.
+     * @param _name bridged token from the other side.
+     * @return token name for this side of the bridge.
+     */
+    function _transformName(string memory _name) internal view returns (string memory) {
+        string memory result = string(abi.encodePacked(_name, SUFFIX));
+        uint256 size = SUFFIX_SIZE;
+        assembly {
+            mstore(result, add(mload(_name), size))
+        }
+        return result;
+    }
 }

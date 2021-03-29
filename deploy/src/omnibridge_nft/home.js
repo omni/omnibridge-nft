@@ -12,6 +12,7 @@ const {
   HOME_MEDIATOR_REQUEST_GAS_LIMIT,
   HOME_ERC721_TOKEN_IMAGE,
   HOME_FORWARDING_RULES_MANAGER,
+  HOME_TOKEN_NAME_SUFFIX,
 } = require('../loadEnv')
 const { ZERO_ADDRESS } = require('../constants')
 
@@ -64,8 +65,9 @@ async function deployHome() {
   console.log('[Home] Manual setup of request gas limits in the manager is recommended.')
   console.log('[Home] Please, call setCommonRequestGasLimits on the Gas Limit Manager contract.')
 
-  console.log('\n[Home] Deploying Bridge Mediator implementation\n')
-  const homeBridgeImplementation = await deployContract(HomeNFTOmnibridge, [], {
+  console.log('\n[Home] Deploying Bridge Mediator implementation with the following parameters:')
+  console.log(`    TOKEN_NAME_SUFFIX: ${HOME_TOKEN_NAME_SUFFIX}\n`)
+  const homeBridgeImplementation = await deployContract(HomeNFTOmnibridge, [HOME_TOKEN_NAME_SUFFIX], {
     nonce: nonce++,
   })
   console.log('[Home] Bridge Mediator Implementation: ', homeBridgeImplementation.options.address)
