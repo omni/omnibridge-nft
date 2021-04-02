@@ -9,6 +9,8 @@ import "./components/common/GasLimitManager.sol";
  * It is designed to be used as an implementation contract of EternalStorageProxy contract.
  */
 contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
+    constructor(string memory _suffix) BasicNFTOmnibridge(_suffix) {}
+
     /**
      * @dev Stores the initial parameters of the mediator.
      * @param _bridgeContract the address of the AMB bridge contract.
@@ -47,14 +49,5 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         (_useOracleLane);
 
         return bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), _data, requestGasLimit());
-    }
-
-    /**
-     * @dev Internal function for transforming the bridged token name. Appends a side-specific suffix.
-     * @param _name bridged token from the other side.
-     * @return token name for this side of the bridge.
-     */
-    function _transformName(string memory _name) internal pure override returns (string memory) {
-        return string(abi.encodePacked(_name, " on Mainnet"));
     }
 }
