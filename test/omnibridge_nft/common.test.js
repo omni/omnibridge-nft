@@ -5,6 +5,7 @@ const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
 const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
 const SelectorTokenGasLimitManager = artifacts.require('SelectorTokenGasLimitManager')
+const OwnedUpgradeabilityProxy = artifacts.require('OwnedUpgradeabilityProxy')
 const selectors = {
   deployAndHandleBridgedNFT: '0x3c91b105',
   handleBridgedNFT: '0xfbc547ce',
@@ -278,7 +279,12 @@ function runTests(accounts, isHome) {
         describe('gas limit manager', () => {
           let manager
           beforeEach(async () => {
-            manager = await SelectorTokenGasLimitManager.new(ambBridgeContract.address, contract.address, 1000000)
+            const proxy = await OwnedUpgradeabilityProxy.new()
+            const impl = await SelectorTokenGasLimitManager.new()
+            const args = [ambBridgeContract.address, contract.address, 1000000]
+            const data = impl.contract.methods.initialize(...args).encodeABI()
+            await proxy.upgradeToAndCall(1, impl.address, data)
+            manager = await SelectorTokenGasLimitManager.at(proxy.address)
           })
 
           it('should allow to set new manager', async () => {
@@ -1101,7 +1107,11 @@ function runTests(accounts, isHome) {
       describe('oracle driven lane permissions', () => {
         let manager
         beforeEach(async () => {
-          manager = await NFTForwardingRulesManager.new(contract.address)
+          const proxy = await OwnedUpgradeabilityProxy.new()
+          const impl = await NFTForwardingRulesManager.new()
+          const data = impl.contract.methods.initialize(contract.address).encodeABI()
+          await proxy.upgradeToAndCall(1, impl.address, data)
+          manager = await NFTForwardingRulesManager.at(proxy.address)
           expect(await manager.mediator()).to.be.equal(contract.address)
         })
 

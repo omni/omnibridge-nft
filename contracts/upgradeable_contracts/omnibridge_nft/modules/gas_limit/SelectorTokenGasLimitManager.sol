@@ -9,18 +9,27 @@ import "../OmnibridgeModule.sol";
  * @dev Multi NFT mediator functionality for managing request gas limits.
  */
 contract SelectorTokenGasLimitManager is OmnibridgeModule {
-    IAMB public immutable bridge;
+    IAMB public bridge;
 
     uint256 internal defaultGasLimit;
     mapping(bytes4 => uint256) internal selectorGasLimit;
     mapping(bytes4 => mapping(address => uint256)) internal selectorTokenGasLimit;
 
-    constructor(
+    /**
+     * @dev Initializes this module contract. Intended to be called only once through the proxy pattern.
+     * @param _bridge address of the AMB bridge contract to which Omnibridge mediator is connected.
+     * @param _mediator address of the Omnibridge contract working with this module.
+     * @param _gasLimit default gas limit for the message execution.
+     */
+    function initialize(
         IAMB _bridge,
         IOwnable _mediator,
         uint256 _gasLimit
-    ) OmnibridgeModule(_mediator) {
+    ) external {
+        require(address(mediator) == address(0));
+
         require(_gasLimit <= _bridge.maxGasPerTx());
+        mediator = _mediator;
         bridge = _bridge;
         defaultGasLimit = _gasLimit;
     }
