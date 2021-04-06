@@ -1,51 +1,42 @@
-const { fromWei } = require('web3').utils
 const { web3Home, deploymentAddress } = require('../web3')
 const { EternalStorageProxy, HomeNFTOmnibridge } = require('../loadContracts')
 const { sendRawTxHome, transferProxyOwnership } = require('../deploymentUtils')
 
-const {
-  HOME_DAILY_LIMIT,
-  FOREIGN_DAILY_LIMIT,
-  HOME_AMB_BRIDGE,
-  HOME_MEDIATOR_REQUEST_GAS_LIMIT,
-  HOME_BRIDGE_OWNER,
-  HOME_UPGRADEABLE_ADMIN,
-} = require('../loadEnv')
+const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN } = require('../loadEnv')
 
-async function initializeMediator({
+function initializeMediator({
   contract,
-  params: { bridgeContract, mediatorContract, dailyLimit, executionDailyLimit, requestGasLimit, owner, tokenImage },
+  params: { bridgeContract, mediatorContract, owner, tokenImage, gasLimitManager, forwardingRulesManager },
 }) {
   console.log(`
     AMB contract: ${bridgeContract},
     Mediator contract: ${mediatorContract},
-    DAILY_LIMIT : ${dailyLimit} which is ${fromWei(dailyLimit)} in eth,
-    EXECUTION_DAILY_LIMIT : ${executionDailyLimit} which is ${fromWei(executionDailyLimit)} in eth,
-    MEDIATOR_REQUEST_GAS_LIMIT : ${requestGasLimit},
     OWNER: ${owner},
-    TOKEN_IMAGE: ${tokenImage}`)
+    TOKEN_IMAGE: ${tokenImage},
+    GAS_LIMIT_MANAGER: ${gasLimitManager},
+    FORWARDING_RULES_MANAGER: ${forwardingRulesManager}
+    `)
 
   return contract.methods
-    .initialize(bridgeContract, mediatorContract, dailyLimit, executionDailyLimit, requestGasLimit, owner, tokenImage)
+    .initialize(bridgeContract, mediatorContract, gasLimitManager, owner, tokenImage, forwardingRulesManager)
     .encodeABI()
 }
 
-async function initialize({ homeBridge, foreignBridge, tokenImage }) {
+async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRulesManager, gasLimitManager }) {
   let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
   const mediatorContract = new web3Home.eth.Contract(HomeNFTOmnibridge.abi, homeBridge)
 
   console.log('\n[Home] Initializing Bridge Mediator with following parameters:')
 
-  const initializeMediatorData = await initializeMediator({
+  const initializeMediatorData = initializeMediator({
     contract: mediatorContract,
     params: {
       bridgeContract: HOME_AMB_BRIDGE,
       mediatorContract: foreignBridge,
-      requestGasLimit: HOME_MEDIATOR_REQUEST_GAS_LIMIT,
+      gasLimitManager,
       owner: HOME_BRIDGE_OWNER,
-      dailyLimit: HOME_DAILY_LIMIT,
-      executionDailyLimit: FOREIGN_DAILY_LIMIT,
       tokenImage,
+      forwardingRulesManager,
     },
   })
 

@@ -4,6 +4,7 @@ const {
   FOREIGN_AMB_BRIDGE,
   HOME_ERC721_TOKEN_IMAGE,
   FOREIGN_ERC721_TOKEN_IMAGE,
+  HOME_FORWARDING_RULES_MANAGER,
 } = require('../loadEnv')
 const { isContract } = require('../deploymentUtils')
 
@@ -27,6 +28,12 @@ async function preDeploy() {
   if (FOREIGN_ERC721_TOKEN_IMAGE) {
     if (!(await isContract(web3Foreign, FOREIGN_ERC721_TOKEN_IMAGE))) {
       throw new Error(`FOREIGN_ERC721_TOKEN_IMAGE should be a contract address`)
+    }
+  }
+
+  if (HOME_FORWARDING_RULES_MANAGER) {
+    if (!(await isContract(web3Home, HOME_FORWARDING_RULES_MANAGER))) {
+      throw new Error(`HOME_FORWARDING_RULES_MANAGER should be a contract address`)
     }
   }
 }

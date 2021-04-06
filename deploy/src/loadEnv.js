@@ -13,9 +13,21 @@ const validateAddress = (address) => {
 
   throw new Error(`Invalid address: ${address}`)
 }
-const validateOptionalAddress = (address) => (address ? validateAddress(address) : '')
+const validateOptionalAddress = (address) => (address && address !== '0x' ? validateAddress(address) : '')
+const validateOptionalAddressOrFalse = (address) => (address === 'false' ? false : validateOptionalAddress(address))
 const addressValidator = envalid.makeValidator(validateAddress)
 const optionalAddressValidator = envalid.makeValidator(validateOptionalAddress)
+const optionalAddressOrFalseValidator = envalid.makeValidator(validateOptionalAddressOrFalse)
+const validateStringMaxLength = (maxLength) => (str) => {
+  if (typeof str !== 'string') {
+    throw new Error(`${str} is not a string`)
+  }
+  if (str.length > maxLength) {
+    throw new Error(`${str} length is beyond the max limit of ${maxLength} characters`)
+  }
+  return str
+}
+const suffixValidator = envalid.makeValidator(validateStringMaxLength(32))
 
 const { BRIDGE_MODE } = process.env
 
@@ -42,10 +54,11 @@ switch (BRIDGE_MODE) {
       FOREIGN_AMB_BRIDGE: addressValidator(),
       HOME_MEDIATOR_REQUEST_GAS_LIMIT: bigNumValidator(),
       FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT: bigNumValidator(),
-      FOREIGN_DAILY_LIMIT: bigNumValidator(),
-      HOME_DAILY_LIMIT: bigNumValidator(),
       HOME_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       FOREIGN_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
+      HOME_FORWARDING_RULES_MANAGER: optionalAddressOrFalseValidator(),
+      HOME_TOKEN_NAME_SUFFIX: suffixValidator(),
+      FOREIGN_TOKEN_NAME_SUFFIX: suffixValidator(),
     }
     break
   default:

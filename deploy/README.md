@@ -53,9 +53,6 @@ HOME_RPC_URL=https://core.poa.network
 HOME_BRIDGE_OWNER=0x
 # Address on Home network with permissions to upgrade the bridge contract
 HOME_UPGRADEABLE_ADMIN=0x
-# The default daily limit in number of tokens. As soon as this limit is exceeded, any
-# transaction which requests to relay assets will fail.
-HOME_DAILY_LIMIT=100
 
 # The RPC channel to a Foreign node able to handle deployment/configuration
 # transactions.
@@ -66,9 +63,6 @@ FOREIGN_BRIDGE_OWNER=0x
 # Address on Foreign network with permissions to upgrade the bridge contract and the
 # bridge validator contract.
 FOREIGN_UPGRADEABLE_ADMIN=0x
-# The default daily limit in number of tokens. As soon as this limit is exceeded, any
-# transaction requesting to relay assets will fail.
-FOREIGN_DAILY_LIMIT=100
 
 # The address of the existing AMB bridge in the Home network that will be used to pass messages
 # to the Foreign network.
@@ -86,10 +80,22 @@ FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT=2000000
 # address of an already deployed ERC721BridgeToken contract that will be used as an implementation for all bridged tokens on the Home side
 # leave empty, if you want to deploy a new ERC721BridgeToken for further usage
 HOME_ERC721_TOKEN_IMAGE=
+# address of an already deployed NFTForwardingRulesManager contract for managing AMB lane permissions.
+# leave empty, if you want to deploy a new NFTForwardingRulesManager.
+# put false, if you want to do not use lane permissions.
+HOME_FORWARDING_RULES_MANAGER=
 
 # address of an already deployed ERC721BridgeToken contract that will be used as an implementation for all bridged tokens on the Foreign side
 # leave empty, if you want to deploy a new ERC721BridgeToken for further usage
 FOREIGN_ERC721_TOKEN_IMAGE=
+
+# suffix used for token names for tokens bridged from Foreign to Home
+# usually you might want it to start with a space character
+HOME_TOKEN_NAME_SUFFIX=""
+
+# suffix used for token names for tokens bridged from Home to Foreign
+# usually you might want it to start with a space character
+FOREIGN_TOKEN_NAME_SUFFIX=""
 
 # The api url of an explorer to verify all the deployed contracts in Home network. Supported explorers: Blockscout, etherscan
 #HOME_EXPLORER_URL=https://blockscout.com/poa/core/api

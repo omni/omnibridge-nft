@@ -3,6 +3,15 @@ const ForeignNFTOmnibridge = artifacts.require('ForeignNFTOmnibridge')
 const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
+const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
+const SelectorTokenGasLimitManager = artifacts.require('SelectorTokenGasLimitManager')
+const OwnedUpgradeabilityProxy = artifacts.require('OwnedUpgradeabilityProxy')
+const selectors = {
+  deployAndHandleBridgedNFT: '0x3c91b105',
+  handleBridgedNFT: '0xfbc547ce',
+  handleNativeNFT: '0xe3ae3984',
+  fixFailedMessage: '0x0950d515',
+}
 
 const { expect } = require('chai')
 const { getEvents, ether, expectEventInLogs } = require('../helpers/helpers')
@@ -15,7 +24,8 @@ const failedMessageId = '0x2ebc2ccc755acc8eaf9252e19573af708d644ab63a39619adb080
 
 function runTests(accounts, isHome) {
   const Mediator = isHome ? HomeNFTOmnibridge : ForeignNFTOmnibridge
-  const modifyName = (name) => name + (isHome ? ' on xDai' : ' on Mainnet')
+  const SUFFIX = ' on Testnet'
+  const modifyName = (name) => name + SUFFIX
   const uriFor = (tokenId) => `https://example.com/${tokenId}`
   const otherSideMediator = '0x1e33FBB006F47F78704c954555a5c52C2A7f409D'
   const otherSideToken1 = '0xAfb77d544aFc1e2aD3dEEAa20F3c80859E7Fc3C9'
@@ -24,7 +34,6 @@ function runTests(accounts, isHome) {
   let contract
   let token
   let ambBridgeContract
-  let currentDay
   let tokenImage
   const owner = accounts[0]
   const user = accounts[1]
@@ -56,12 +65,13 @@ function runTests(accounts, isHome) {
     const args = [
       opts.ambContract || ambBridgeContract.address,
       opts.otherSideMediator || otherSideMediator,
-      opts.dailyLimit || 20,
-      opts.executionDailyLimit || 10,
-      opts.requestGasLimit || 1000000,
+      isHome ? opts.gasLimitManager || ZERO_ADDRESS : opts.requestGasLimit || 1000000,
       opts.owner || owner,
       opts.tokenImage || tokenImage.address,
     ]
+    if (isHome) {
+      args.push(opts.forwardingRulesManager || ZERO_ADDRESS)
+    }
     return contract.initialize(...args)
   }
 
@@ -106,10 +116,9 @@ function runTests(accounts, isHome) {
   })
 
   beforeEach(async () => {
-    contract = await Mediator.new()
+    contract = await Mediator.new(SUFFIX)
     ambBridgeContract = await AMBMock.new()
     token = await ERC721BridgeToken.new('TEST', 'TST', owner)
-    currentDay = await contract.getCurrentDay()
   })
 
   describe('getBridgeMode', () => {
@@ -130,9 +139,6 @@ function runTests(accounts, isHome) {
       expect(await contract.isInitialized()).to.be.equal(false)
       expect(await contract.bridgeContract()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(ZERO_ADDRESS)
-      expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
-      expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
-      expect(await contract.requestGasLimit()).to.be.bignumber.equal(ZERO)
       expect(await contract.owner()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.tokenImage()).to.be.equal(ZERO_ADDRESS)
 
@@ -140,8 +146,16 @@ function runTests(accounts, isHome) {
       // not valid bridge address
       await initialize({ ambContract: ZERO_ADDRESS }).should.be.rejected
 
-      // maxGasPerTx > bridge maxGasPerTx
-      await initialize({ requestGasLimit: ether('1') }).should.be.rejected
+      if (isHome) {
+        // gas limit manage is not a contract
+        await initialize({ gasLimitManager: owner }).should.be.rejected
+
+        // forwarding rules manager is not a contract
+        await initialize({ forwardingRulesManager: owner }).should.be.rejected
+      } else {
+        // maxGasPerTx > bridge maxGasPerTx
+        await initialize({ requestGasLimit: ether('1') }).should.be.rejected
+      }
 
       // not valid owner
       await initialize({ owner: ZERO_ADDRESS }).should.be.rejected
@@ -149,7 +163,7 @@ function runTests(accounts, isHome) {
       // token factory is not a contract
       await initialize({ tokenImage: owner }).should.be.rejected
 
-      const { logs } = await initialize().should.be.fulfilled
+      await initialize().should.be.fulfilled
 
       // already initialized
       await initialize().should.be.rejected
@@ -158,14 +172,13 @@ function runTests(accounts, isHome) {
       expect(await contract.isInitialized()).to.be.equal(true)
       expect(await contract.bridgeContract()).to.be.equal(ambBridgeContract.address)
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(otherSideMediator)
-      expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('20')
-      expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('10')
-      expect(await contract.requestGasLimit()).to.be.bignumber.equal('1000000')
+      if (isHome) {
+        expect(await contract.gasLimitManager()).to.be.equal(ZERO_ADDRESS)
+      } else {
+        expect(await contract.requestGasLimit()).to.be.bignumber.equal('1000000')
+      }
       expect(await contract.owner()).to.be.equal(owner)
       expect(await contract.tokenImage()).to.be.equal(tokenImage.address)
-
-      expectEventInLogs(logs, 'ExecutionDailyLimitChanged', { token: ZERO_ADDRESS, newLimit: '10' })
-      expectEventInLogs(logs, 'DailyLimitChanged', { token: ZERO_ADDRESS, newLimit: '20' })
     })
   })
 
@@ -178,45 +191,55 @@ function runTests(accounts, isHome) {
     })
 
     describe('update mediator parameters', () => {
-      describe('limits', () => {
-        it('should allow to update default daily limits', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, 10, { from: user }).should.be.rejected
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 5, { from: user }).should.be.rejected
-          await contract.setDailyLimit(ZERO_ADDRESS, 10, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 5, { from: owner }).should.be.fulfilled
+      describe('disable token operations', () => {
+        it('should allow to disable bridging operations globally', async () => {
+          await contract.disableTokenBridging(ZERO_ADDRESS, true, { from: user }).should.be.rejected
+          await contract.disableTokenExecution(ZERO_ADDRESS, true, { from: user }).should.be.rejected
 
-          expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('10')
-          expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal('5')
+          const receipt1 = await contract.disableTokenBridging(ZERO_ADDRESS, true, { from: owner }).should.be.fulfilled
+          expectEventInLogs(receipt1.logs, 'TokenBridgingDisabled', { token: ZERO_ADDRESS, disabled: true })
 
-          await contract.setDailyLimit(ZERO_ADDRESS, ZERO, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO, { from: owner }).should.be.fulfilled
+          expect(await contract.isTokenBridgingAllowed(ZERO_ADDRESS)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(ZERO_ADDRESS)).to.be.equal(true)
 
-          expect(await contract.dailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
-          expect(await contract.executionDailyLimit(ZERO_ADDRESS)).to.be.bignumber.equal(ZERO)
+          const receipt2 = await contract.disableTokenExecution(ZERO_ADDRESS, true, { from: owner }).should.be.fulfilled
+          expectEventInLogs(receipt2.logs, 'TokenExecutionDisabled', { token: ZERO_ADDRESS, disabled: true })
+
+          expect(await contract.isTokenBridgingAllowed(ZERO_ADDRESS)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(ZERO_ADDRESS)).to.be.equal(false)
+
+          const receipt3 = await contract.disableTokenBridging(ZERO_ADDRESS, false, { from: owner }).should.be.fulfilled
+          const receipt4 = await contract.disableTokenExecution(ZERO_ADDRESS, false, { from: owner }).should.be
+            .fulfilled
+          expectEventInLogs(receipt3.logs, 'TokenBridgingDisabled', { token: ZERO_ADDRESS, disabled: false })
+          expectEventInLogs(receipt4.logs, 'TokenExecutionDisabled', { token: ZERO_ADDRESS, disabled: false })
+
+          expect(await contract.isTokenBridgingAllowed(ZERO_ADDRESS)).to.be.equal(true)
+          expect(await contract.isTokenExecutionAllowed(ZERO_ADDRESS)).to.be.equal(true)
         })
 
-        it('should only allow to update parameters for known tokens', async () => {
-          await contract.setDailyLimit(token.address, 10, { from: owner }).should.be.rejected
-          await contract.setExecutionDailyLimit(token.address, 5, { from: owner }).should.be.rejected
+        it('should allow to disable operations for known tokens', async () => {
+          await contract.disableTokenBridging(token.address, true, { from: owner }).should.be.rejected
+          await contract.disableTokenExecution(token.address, true, { from: owner }).should.be.rejected
 
           await token.safeTransferFrom(user, contract.address, await mintNewNFT(), { from: user }).should.be.fulfilled
 
-          await contract.setDailyLimit(token.address, 10, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(token.address, 5, { from: owner }).should.be.fulfilled
+          await contract.disableTokenBridging(token.address, true, { from: owner }).should.be.fulfilled
+          await contract.disableTokenExecution(token.address, true, { from: owner }).should.be.fulfilled
 
-          expect(await contract.dailyLimit(token.address)).to.be.bignumber.equal('10')
-          expect(await contract.executionDailyLimit(token.address)).to.be.bignumber.equal('5')
+          expect(await contract.isTokenBridgingAllowed(token.address)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(token.address)).to.be.equal(false)
 
           const args = [otherSideToken1, 'Test', 'TST', user, 1, uriFor(1)]
           const data = contract.contract.methods.deployAndHandleBridgedNFT(...args).encodeABI()
           expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
           const bridgedToken = await contract.bridgedTokenAddress(otherSideToken1)
 
-          await contract.setDailyLimit(bridgedToken, 10, { from: owner }).should.be.fulfilled
-          await contract.setExecutionDailyLimit(bridgedToken, 5, { from: owner }).should.be.fulfilled
+          await contract.disableTokenBridging(bridgedToken, true, { from: owner }).should.be.fulfilled
+          await contract.disableTokenExecution(bridgedToken, true, { from: owner }).should.be.fulfilled
 
-          expect(await contract.dailyLimit(bridgedToken)).to.be.bignumber.equal('10')
-          expect(await contract.executionDailyLimit(bridgedToken)).to.be.bignumber.equal('5')
+          expect(await contract.isTokenBridgingAllowed(bridgedToken)).to.be.equal(false)
+          expect(await contract.isTokenExecutionAllowed(bridgedToken)).to.be.equal(false)
         })
       })
 
@@ -251,57 +274,213 @@ function runTests(accounts, isHome) {
           await contract.setCustomTokenAddressPair(otherSideToken1, token.address).should.be.rejected
         })
       })
+
+      if (isHome) {
+        describe('gas limit manager', () => {
+          let manager
+          beforeEach(async () => {
+            const proxy = await OwnedUpgradeabilityProxy.new()
+            const impl = await SelectorTokenGasLimitManager.new()
+            const args = [ambBridgeContract.address, contract.address, 1000000]
+            const data = impl.contract.methods.initialize(...args).encodeABI()
+            await proxy.upgradeToAndCall(1, impl.address, data)
+            manager = await SelectorTokenGasLimitManager.at(proxy.address)
+          })
+
+          it('should allow to set new manager', async () => {
+            expect(await contract.gasLimitManager()).to.be.equal(ZERO_ADDRESS)
+
+            await contract.setGasLimitManager(manager.address, { from: user }).should.be.rejected
+            await contract.setGasLimitManager(manager.address, { from: owner }).should.be.fulfilled
+
+            expect(await contract.gasLimitManager()).to.be.equal(manager.address)
+            expect(await manager.mediator()).to.be.equal(contract.address)
+            expect(await manager.bridge()).to.be.equal(ambBridgeContract.address)
+            expect(await manager.methods['requestGasLimit()']()).to.be.bignumber.equal('1000000')
+          })
+
+          it('should allow to set request gas limit for specific selector', async () => {
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            const method = manager.methods['setRequestGasLimit(bytes4,uint256)']
+            await method('0xffffffff', 200000, { from: user }).should.be.rejected
+            await method('0xffffffff', 200000, { from: owner }).should.be.fulfilled
+
+            expect(await manager.methods['requestGasLimit(bytes4)']('0xffffffff')).to.be.bignumber.equal('200000')
+            expect(await manager.methods['requestGasLimit()']()).to.be.bignumber.equal('1000000')
+          })
+
+          it('should use the custom gas limit when bridging tokens', async () => {
+            const tokenId1 = await mintNewNFT()
+            const tokenId2 = await mintNewNFT()
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+
+            const method = manager.methods['setRequestGasLimit(bytes4,uint256)']
+            await method(selectors.handleBridgedNFT, 200000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId2).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+            expect(events[0].returnValues.gas).to.be.equal('1000000')
+            expect(events[1].returnValues.gas).to.be.equal('1000000')
+            expect(events[2].returnValues.gas).to.be.equal('200000')
+          })
+
+          it('should allow to set request gas limit for specific selector and token', async () => {
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            const method = manager.methods['setRequestGasLimit(bytes4,address,uint256)']
+            await method('0xffffffff', token.address, 200000, { from: user }).should.be.rejected
+            await method('0xffffffff', token.address, 200000, { from: owner }).should.be.fulfilled
+
+            expect(
+              await manager.methods['requestGasLimit(bytes4,address)']('0xffffffff', token.address)
+            ).to.be.bignumber.equal('200000')
+            expect(await manager.methods['requestGasLimit(bytes4)']('0xffffffff')).to.be.bignumber.equal('0')
+            expect(await manager.methods['requestGasLimit()']()).to.be.bignumber.equal('1000000')
+          })
+
+          it('should use the custom gas limit when bridging specific token', async () => {
+            const tokenId1 = await mintNewNFT()
+            const tokenId2 = await mintNewNFT()
+            await contract.setGasLimitManager(manager.address).should.be.fulfilled
+
+            const method1 = manager.methods['setRequestGasLimit(bytes4,uint256)']
+            await method1(selectors.handleBridgedNFT, 100000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+
+            const method2 = manager.methods['setRequestGasLimit(bytes4,address,uint256)']
+            await method2(selectors.handleBridgedNFT, token.address, 200000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId2).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+            expect(events[0].returnValues.gas).to.be.equal('1000000')
+            expect(events[1].returnValues.gas).to.be.equal('100000')
+            expect(events[2].returnValues.gas).to.be.equal('200000')
+          })
+
+          describe('common gas limits setters', () => {
+            const token = otherSideToken1
+
+            it('should use setCommonRequestGasLimits', async () => {
+              const { setCommonRequestGasLimits } = manager
+              await setCommonRequestGasLimits([100, 50, 50, 99], { from: user }).should.be.rejected
+              await setCommonRequestGasLimits([10, 50, 50, 99], { from: owner }).should.be.rejected
+              await setCommonRequestGasLimits([100, 50, 50, 99], { from: owner }).should.be.fulfilled
+
+              const method = manager.methods['requestGasLimit(bytes4)']
+              expect(await method(selectors.deployAndHandleBridgedNFT)).to.be.bignumber.equal('100')
+              expect(await method(selectors.handleBridgedNFT)).to.be.bignumber.equal('50')
+              expect(await method(selectors.handleNativeNFT)).to.be.bignumber.equal('50')
+              expect(await method(selectors.fixFailedMessage)).to.be.bignumber.equal('99')
+            })
+
+            it('should use setBridgedTokenRequestGasLimits', async () => {
+              await manager.setBridgedTokenRequestGasLimits(token, [100], { from: user }).should.be.rejected
+              await manager.setBridgedTokenRequestGasLimits(token, [100], { from: owner }).should.be.fulfilled
+
+              const method = manager.methods['requestGasLimit(bytes4,address)']
+              expect(await method(selectors.handleNativeNFT, token)).to.be.bignumber.equal('100')
+            })
+
+            it('should use setNativeTokenRequestGasLimits', async () => {
+              const { setNativeTokenRequestGasLimits } = manager
+              await setNativeTokenRequestGasLimits(token, [100, 50], { from: user }).should.be.rejected
+              await setNativeTokenRequestGasLimits(token, [10, 50], { from: owner }).should.be.rejected
+              await setNativeTokenRequestGasLimits(token, [100, 50], { from: owner }).should.be.fulfilled
+
+              const method = manager.methods['requestGasLimit(bytes4,address)']
+              expect(await method(selectors.deployAndHandleBridgedNFT, token)).to.be.bignumber.equal('100')
+              expect(await method(selectors.handleBridgedNFT, token)).to.be.bignumber.equal('50')
+            })
+          })
+        })
+      } else {
+        describe('request gas limit', () => {
+          it('should allow to set default gas limit', async () => {
+            await contract.setRequestGasLimit(200000, { from: user }).should.be.rejected
+            await contract.setRequestGasLimit(200000, { from: owner }).should.be.fulfilled
+
+            expect(await contract.requestGasLimit()).to.be.bignumber.equal('200000')
+          })
+
+          it('should use the custom gas limit when bridging tokens', async () => {
+            const tokenId1 = await mintNewNFT()
+            const tokenId2 = await mintNewNFT()
+            await sendFunctions[0](tokenId1).should.be.fulfilled
+
+            await contract.setRequestGasLimit(200000).should.be.fulfilled
+
+            await sendFunctions[0](tokenId2).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(2)
+            expect(events[0].returnValues.gas).to.be.equal('1000000')
+            expect(events[1].returnValues.gas).to.be.equal('200000')
+          })
+        })
+      }
     })
 
     describe('native tokens', () => {
-      describe('initialization', () => {
-        it(`should initialize limits`, async () => {
-          await sendFunctions[0]().should.be.fulfilled
-
-          expect(await contract.dailyLimit(token.address)).to.be.bignumber.equal('20')
-          expect(await contract.executionDailyLimit(token.address)).to.be.bignumber.equal('10')
-        })
-      })
-
       describe('tokens relay', () => {
         for (const send of sendFunctions) {
           it(`should make calls to deployAndHandleBridgedNFT and handleBridgedNFT using ${send.name}`, async () => {
             const tokenId1 = await mintNewNFT()
-            const receiver = await send(tokenId1).should.be.fulfilled
-
-            let events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-            expect(events.length).to.be.equal(1)
-            const { data, messageId, dataType, executor } = events[0].returnValues
-            expect(data.slice(2, 10)).to.be.equal('3c91b105')
-            const args = web3.eth.abi.decodeParameters(
-              ['address', 'string', 'string', 'address', 'uint256', 'string'],
-              data.slice(10)
-            )
-            expect(executor).to.be.equal(otherSideMediator)
-            expect(args[0]).to.be.equal(token.address)
-            expect(args[1]).to.be.equal(await token.name())
-            expect(args[2]).to.be.equal(await token.symbol())
-            expect(args[3]).to.be.equal(receiver)
-            expect(args[4]).to.be.equal(tokenId1.toString())
-            expect(args[5]).to.be.equal(uriFor(tokenId1))
-            expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal(messageId)
-
             const tokenId2 = await mintNewNFT()
+            const receiver = await send(tokenId1).should.be.fulfilled
             await send(tokenId2).should.be.fulfilled
 
-            events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-            expect(events.length).to.be.equal(2)
-            const { data: data2, dataType: dataType2 } = events[1].returnValues
-            expect(data2.slice(2, 10)).to.be.equal('fbc547ce')
-            const args2 = web3.eth.abi.decodeParameters(['address', 'address', 'uint256', 'string'], data2.slice(10))
-            expect(args2[0]).to.be.equal(token.address)
-            expect(args2[1]).to.be.equal(receiver)
-            expect(args2[2]).to.be.equal(tokenId2.toString())
-            expect(args2[3]).to.be.equal(uriFor(tokenId2))
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
 
+            expect(await contract.isBridgedTokenDeployAcknowledged(token.address)).to.be.equal(false)
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
+            expect(await contract.isBridgedTokenDeployAcknowledged(token.address)).to.be.equal(true)
+
+            await send(tokenId1).should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+
+            for (let i = 0; i < 2; i++) {
+              const { data, dataType, executor } = events[i].returnValues
+              expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+              const args = web3.eth.abi.decodeParameters(
+                ['address', 'string', 'string', 'address', 'uint256', 'string'],
+                data.slice(10)
+              )
+              expect(dataType).to.be.equal('0')
+              expect(executor).to.be.equal(otherSideMediator)
+              expect(args[0]).to.be.equal(token.address)
+              expect(args[1]).to.be.equal(await token.name())
+              expect(args[2]).to.be.equal(await token.symbol())
+              expect(args[3]).to.be.equal(receiver)
+              const tokenId = [tokenId1, tokenId2][i]
+              expect(args[4]).to.be.equal(tokenId.toString())
+              expect(args[5]).to.be.equal(uriFor(tokenId))
+            }
+
+            const { data, dataType } = events[2].returnValues
             expect(dataType).to.be.equal('0')
-            expect(dataType2).to.be.equal('0')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
+            expect(data.slice(0, 10)).to.be.equal(selectors.handleBridgedNFT)
+            const args = web3.eth.abi.decodeParameters(['address', 'address', 'uint256', 'string'], data.slice(10))
+            expect(args[0]).to.be.equal(token.address)
+            expect(args[1]).to.be.equal(receiver)
+            expect(args[2]).to.be.equal(tokenId1.toString())
+            expect(args[3]).to.be.equal(uriFor(tokenId1))
+
             expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(true)
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
             expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
@@ -310,35 +489,45 @@ function runTests(accounts, isHome) {
             expect(await token.tokenURI(tokenId2)).to.be.equal(uriFor(tokenId2))
 
             const depositEvents = await getEvents(contract, { event: 'TokensBridgingInitiated' })
-            expect(depositEvents.length).to.be.equal(2)
-            expect(depositEvents[0].returnValues.token).to.be.equal(token.address)
-            expect(depositEvents[0].returnValues.sender).to.be.equal(user)
-            expect(depositEvents[0].returnValues.tokenId).to.be.equal(tokenId1.toString())
-            expect(depositEvents[0].returnValues.messageId).to.include('0x11223344')
-            expect(depositEvents[1].returnValues.token).to.be.equal(token.address)
-            expect(depositEvents[1].returnValues.sender).to.be.equal(user)
-            expect(depositEvents[1].returnValues.tokenId).to.be.equal(tokenId2.toString())
-            expect(depositEvents[1].returnValues.messageId).to.include('0x11223344')
+            expect(depositEvents.length).to.be.equal(3)
+            for (let i = 0; i < 3; i++) {
+              expect(depositEvents[i].returnValues.token).to.be.equal(token.address)
+              expect(depositEvents[i].returnValues.sender).to.be.equal(user)
+              expect(depositEvents[i].returnValues.tokenId).to.be.equal([tokenId1, tokenId2, tokenId1][i].toString())
+              expect(depositEvents[i].returnValues.messageId).to.include('0x11223344')
+            }
           })
         }
 
-        it('should respect global shutdown', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+        it('should respect global bridging restrictions', async () => {
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
           for (const send of sendFunctions) {
             await send().should.be.rejected
           }
-          await contract.setDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
           for (const send of sendFunctions) {
             await send().should.be.fulfilled
           }
         })
 
-        it('should respect limits', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, 3).should.be.fulfilled
+        it('should respect per-token bridging restriction', async () => {
           await sendFunctions[0]().should.be.fulfilled
-          await sendFunctions[0]().should.be.fulfilled
-          await sendFunctions[0]().should.be.fulfilled
+
+          await contract.disableTokenBridging(token.address, true).should.be.fulfilled
+
           await sendFunctions[0]().should.be.rejected
+
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
+
+          await sendFunctions[0]().should.be.rejected
+
+          await contract.disableTokenBridging(token.address, false).should.be.fulfilled
+
+          await sendFunctions[0]().should.be.rejected
+
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
+
+          await sendFunctions[0]().should.be.fulfilled
         })
 
         describe('fixFailedMessage', () => {
@@ -347,7 +536,12 @@ function runTests(accounts, isHome) {
               // User transfer tokens twice
               const tokenId1 = await mintNewNFT()
               const tokenId2 = await mintNewNFT()
+              const tokenId3 = await mintNewNFT()
+
               await send(tokenId1)
+              await send(tokenId3)
+              const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId3).encodeABI()
+              expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
               await send(tokenId2)
 
               expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('2')
@@ -355,9 +549,9 @@ function runTests(accounts, isHome) {
               expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
 
               const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-              expect(events.length).to.be.equal(2)
+              expect(events.length).to.be.equal(3)
               const transferMessageId1 = events[0].returnValues.messageId
-              const transferMessageId2 = events[1].returnValues.messageId
+              const transferMessageId2 = events[2].returnValues.messageId
               expect(await contract.messageFixed(transferMessageId1)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId2)).to.be.equal(false)
 
@@ -377,15 +571,11 @@ function runTests(accounts, isHome) {
               expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId1)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId2)).to.be.equal(true)
-              expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal(transferMessageId1)
 
               expect(await executeMessageCall(otherMessageId, fixData1)).to.be.equal(true)
               expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('0')
               expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(false)
               expect(await contract.messageFixed(transferMessageId1)).to.be.equal(true)
-              expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal('0x'.padEnd(66, '0'))
-              expect(await contract.dailyLimit(token.address)).to.be.bignumber.equal('0')
-              expect(await contract.executionDailyLimit(token.address)).to.be.bignumber.equal('0')
 
               const event = await getEvents(contract, { event: 'FailedMessageFixed' })
               expect(event.length).to.be.equal(2)
@@ -427,14 +617,11 @@ function runTests(accounts, isHome) {
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(false)
             expect(await contract.mediatorOwns(token.address, tokenId3)).to.be.equal(false)
             expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('3')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('1')
             const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(1)
           })
 
           it('should allow to fix extra mediator balance', async () => {
-            await contract.setDailyLimit(token.address, 2).should.be.fulfilled
-
             await contract.fixMediatorBalance(token.address, owner, tokenId2, { from: user }).should.be.rejected
             await contract.fixMediatorBalance(ZERO_ADDRESS, owner, tokenId2, { from: owner }).should.be.rejected
             await contract.fixMediatorBalance(token.address, ZERO_ADDRESS, tokenId2, { from: owner }).should.be.rejected
@@ -444,32 +631,24 @@ function runTests(accounts, isHome) {
 
             expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
             expect(await token.balanceOf(contract.address)).to.be.bignumber.equal('3')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
             const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(2)
-            const { data, dataType, executor } = events[1].returnValues
-            expect(data.slice(2, 10)).to.be.equal('fbc547ce')
-            const args = web3.eth.abi.decodeParameters(['address', 'address', 'uint256'], data.slice(10))
-            expect(executor).to.be.equal(otherSideMediator)
-            expect(dataType).to.be.bignumber.equal('0')
-            expect(args[0]).to.be.equal(token.address)
-            expect(args[1]).to.be.equal(owner)
-            expect(args[2]).to.be.bignumber.equal(tokenId2.toString())
+            const { data } = events[1].returnValues
+            expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
           })
 
-          it('should allow to fix extra mediator balance with respect to limits', async () => {
-            await contract.setDailyLimit(token.address, 2).should.be.fulfilled
-
+          it('should use different methods on the other side', async () => {
             await contract.fixMediatorBalance(token.address, owner, tokenId2, { from: owner }).should.be.fulfilled
-            await contract.fixMediatorBalance(token.address, owner, tokenId3, { from: owner }).should.be.rejected
 
-            await contract.setDailyLimit(token.address, 5).should.be.fulfilled
+            const reverseData = contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
+            expect(await executeMessageCall(otherMessageId, reverseData)).to.be.equal(true)
 
             await contract.fixMediatorBalance(token.address, owner, tokenId3, { from: owner }).should.be.fulfilled
 
-            expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(true)
-            expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
-            expect(await contract.mediatorOwns(token.address, tokenId3)).to.be.equal(true)
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(3)
+            expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+            expect(events[2].returnValues.data.slice(0, 10)).to.be.equal(selectors.handleBridgedNFT)
           })
         })
       })
@@ -498,7 +677,6 @@ function runTests(accounts, isHome) {
 
           expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
 
-          expect(await contract.totalExecutedPerDay(token.address, currentDay)).to.be.bignumber.equal('1')
           expect(await contract.mediatorOwns(token.address, tokenId1)).to.be.equal(false)
           expect(await contract.mediatorOwns(token.address, tokenId2)).to.be.equal(true)
           expect(await token.balanceOf(user)).to.be.bignumber.equal('1')
@@ -522,17 +700,17 @@ function runTests(accounts, isHome) {
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
         })
 
-        it('should not allow to operate when global shutdown is enabled', async () => {
+        it('should not allow to operate when execution is disabled globally', async () => {
           const tokenId1 = await mintNewNFT()
           await sendFunctions[0](tokenId1).should.be.fulfilled
 
           const data = await contract.contract.methods.handleNativeNFT(token.address, user, tokenId1).encodeABI()
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, true).should.be.fulfilled
 
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
           expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
         })
@@ -548,7 +726,7 @@ function runTests(accounts, isHome) {
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(1)
           const { data } = events[0].returnValues
-          expect(data.slice(2, 10)).to.be.equal('0950d515')
+          expect(data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
           const args = web3.eth.abi.decodeParameters(['bytes32'], data.slice(10))
           expect(args[0]).to.be.equal(failedMessageId)
         })
@@ -588,8 +766,8 @@ function runTests(accounts, isHome) {
 
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(2)
-          expect(events[0].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
-          expect(events[1].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
+          expect(events[0].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
+          expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
         })
       })
     })
@@ -597,7 +775,6 @@ function runTests(accounts, isHome) {
     describe('bridged tokens', () => {
       describe('tokens relay', () => {
         beforeEach(async () => {
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
           const args = [otherSideToken1, 'Test', 'TST', user, 1, '']
           const deployData = contract.contract.methods.deployAndHandleBridgedNFT(...args).encodeABI()
           expect(await executeMessageCall(exampleMessageId, deployData)).to.be.equal(true)
@@ -615,21 +792,19 @@ function runTests(accounts, isHome) {
             let events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(1)
             const { data, dataType, executor } = events[0].returnValues
-            expect(data.slice(2, 10)).to.be.equal('e3ae3984')
+            expect(data.slice(0, 10)).to.be.equal(selectors.handleNativeNFT)
             const args = web3.eth.abi.decodeParameters(['address', 'address', 'uint256'], data.slice(10))
             expect(executor).to.be.equal(otherSideMediator)
             expect(args[0]).to.be.equal(otherSideToken1)
             expect(args[1]).to.be.equal(receiver)
             expect(args[2]).to.be.equal('1')
-            expect(await contract.tokenRegistrationMessageId(otherSideToken1)).to.be.equal('0x'.padEnd(66, '0'))
-            expect(await contract.tokenRegistrationMessageId(token.address)).to.be.equal('0x'.padEnd(66, '0'))
 
             await send(2).should.be.fulfilled
 
             events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
             expect(events.length).to.be.equal(2)
             const { data: data2, dataType: dataType2 } = events[1].returnValues
-            expect(data2.slice(2, 10)).to.be.equal('e3ae3984')
+            expect(data2.slice(0, 10)).to.be.equal(selectors.handleNativeNFT)
             const args2 = web3.eth.abi.decodeParameters(['address', 'address', 'uint256'], data2.slice(10))
             expect(args2[0]).to.be.equal(otherSideToken1)
             expect(args2[1]).to.be.equal(receiver)
@@ -637,7 +812,6 @@ function runTests(accounts, isHome) {
 
             expect(dataType).to.be.equal('0')
             expect(dataType2).to.be.equal('0')
-            expect(await contract.totalSpentPerDay(token.address, currentDay)).to.be.bignumber.equal('2')
             expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
             expect(await token.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
 
@@ -654,25 +828,33 @@ function runTests(accounts, isHome) {
           })
         }
 
-        it('should respect global shutdown', async () => {
-          await contract.setDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+        it('should respect global execution restriction', async () => {
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
           for (const send of sendFunctions) {
             await send(1).should.be.rejected
           }
-          await contract.setDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
           await sendFunctions[0](1).should.be.fulfilled
         })
 
-        it('should respect limits', async () => {
-          const bridgeData1 = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 2, '').encodeABI()
-          const bridgeData2 = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 3, '').encodeABI()
-          expect(await executeMessageCall(exampleMessageId, bridgeData1)).to.be.equal(true)
-          expect(await executeMessageCall(exampleMessageId, bridgeData2)).to.be.equal(true)
+        it('should respect per-token execution restriction', async () => {
+          const bridgeData = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 2, '').encodeABI()
+          expect(await executeMessageCall(exampleMessageId, bridgeData)).to.be.equal(true)
 
-          await contract.setDailyLimit(token.address, 2).should.be.fulfilled
           await sendFunctions[0](1).should.be.fulfilled
+
+          await contract.disableTokenBridging(token.address, true).should.be.fulfilled
+
+          await sendFunctions[0](2).should.be.rejected
+
+          await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
+
+          await sendFunctions[0](2).should.be.rejected
+
+          await contract.disableTokenBridging(token.address, false).should.be.fulfilled
+          await contract.disableTokenBridging(ZERO_ADDRESS, false).should.be.fulfilled
+
           await sendFunctions[0](2).should.be.fulfilled
-          await sendFunctions[0](3).should.be.rejected
         })
 
         describe('fixFailedMessage', () => {
@@ -739,7 +921,6 @@ function runTests(accounts, isHome) {
           expect(await deployedToken.symbol()).to.be.equal('TST')
           expect(await contract.nativeTokenAddress(bridgedToken)).to.be.equal(nativeToken)
           expect(await contract.bridgedTokenAddress(nativeToken)).to.be.equal(bridgedToken)
-          expect(await contract.totalExecutedPerDay(deployedToken.address, currentDay)).to.be.bignumber.equal('1')
           expect(await deployedToken.ownerOf(1)).to.be.bignumber.equal(user)
           expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
           expect(await deployedToken.tokenURI(1)).to.be.equal(uriFor(1))
@@ -789,15 +970,15 @@ function runTests(accounts, isHome) {
           expect(await deployedToken.symbol()).to.be.equal('Test')
         })
 
-        it('should not allow to operate when global shutdown is enabled', async () => {
+        it('should not allow to operate when execution is disabled globally', async () => {
           const args = [otherSideToken1, 'Test', 'TST', user, 1, '']
           const data = contract.contract.methods.deployAndHandleBridgedNFT(...args).encodeABI()
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, true).should.be.fulfilled
 
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
           expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
         })
@@ -817,7 +998,6 @@ function runTests(accounts, isHome) {
           expect(nativeToken).to.be.equal(otherSideToken1)
           deployedToken = await ERC721BridgeToken.at(bridgedToken)
 
-          expect(await contract.totalExecutedPerDay(deployedToken.address, currentDay)).to.be.bignumber.equal('1')
           expect(await deployedToken.balanceOf(user)).to.be.bignumber.equal('1')
           expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
           expect(await contract.mediatorOwns(deployedToken.address, 1)).to.be.equal(false)
@@ -838,7 +1018,6 @@ function runTests(accounts, isHome) {
 
           expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
 
-          expect(await contract.totalExecutedPerDay(deployedToken.address, currentDay)).to.be.bignumber.equal('2')
           expect(await contract.mediatorOwns(deployedToken.address, 2)).to.be.equal(false)
           expect(await deployedToken.balanceOf(user)).to.be.bignumber.equal('2')
           expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
@@ -858,14 +1037,14 @@ function runTests(accounts, isHome) {
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
         })
 
-        it('should not allow to operate when global shutdown is enabled', async () => {
+        it('should not allow to operate when execution is disabled globally', async () => {
           const data = contract.contract.methods.handleBridgedNFT(otherSideToken1, user, 2, '').encodeABI()
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, ZERO).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, true).should.be.fulfilled
 
           expect(await executeMessageCall(failedMessageId, data)).to.be.equal(false)
 
-          await contract.setExecutionDailyLimit(ZERO_ADDRESS, 10).should.be.fulfilled
+          await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
           expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
         })
@@ -885,7 +1064,7 @@ function runTests(accounts, isHome) {
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(1)
           const { data } = events[0].returnValues
-          expect(data.slice(2, 10)).to.be.equal('0950d515')
+          expect(data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
           const args = web3.eth.abi.decodeParameters(['bytes32'], data.slice(10))
           expect(args[0]).to.be.equal(failedMessageId)
         })
@@ -918,11 +1097,101 @@ function runTests(accounts, isHome) {
 
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(2)
-          expect(events[0].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
-          expect(events[1].returnValues.data.slice(2, 10)).to.be.equal('0950d515')
+          expect(events[0].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
+          expect(events[1].returnValues.data.slice(0, 10)).to.be.equal(selectors.fixFailedMessage)
         })
       })
     })
+
+    if (isHome) {
+      describe('oracle driven lane permissions', () => {
+        let manager
+        beforeEach(async () => {
+          const proxy = await OwnedUpgradeabilityProxy.new()
+          const impl = await NFTForwardingRulesManager.new()
+          const data = impl.contract.methods.initialize(contract.address).encodeABI()
+          await proxy.upgradeToAndCall(1, impl.address, data)
+          manager = await NFTForwardingRulesManager.at(proxy.address)
+          expect(await manager.mediator()).to.be.equal(contract.address)
+        })
+
+        it('should allow to update manager address', async () => {
+          await contract.setForwardingRulesManager(manager.address, { from: user }).should.be.rejected
+          await contract.setForwardingRulesManager(manager.address, { from: owner }).should.be.fulfilled
+
+          expect(await contract.forwardingRulesManager()).to.be.equal(manager.address)
+
+          const otherManager = await NFTForwardingRulesManager.new(contract.address)
+          await contract.setForwardingRulesManager(otherManager.address).should.be.fulfilled
+
+          expect(await contract.forwardingRulesManager()).to.be.equal(otherManager.address)
+
+          await contract.setForwardingRulesManager(owner).should.be.rejected
+          await contract.setForwardingRulesManager(ZERO_ADDRESS).should.be.fulfilled
+
+          expect(await contract.forwardingRulesManager()).to.be.equal(ZERO_ADDRESS)
+        })
+
+        it('should allow to set/update lane permissions', async () => {
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('0')
+
+          await manager.setRuleForTokenToPBO(token.address, true, { from: user }).should.be.rejected
+          await manager.setRuleForTokenToPBO(token.address, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('1')
+
+          await manager.setRuleForTokenToPBO(token.address, false, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenAndSenderToPBO(token.address, user, true, { from: user }).should.be.rejected
+          await manager.setRuleForTokenAndSenderToPBO(token.address, user, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('1')
+          expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('0')
+
+          await manager.setRuleForTokenAndSenderToPBO(token.address, user, false, { from: owner }).should.be.fulfilled
+          await manager.setRuleForTokenAndReceiverToPBO(token.address, user, true, { from: user }).should.be.rejected
+          await manager.setRuleForTokenAndReceiverToPBO(token.address, user, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('0')
+
+          await manager.setRuleForTokenToPBO(token.address, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user2, user2)).to.be.bignumber.equal('1')
+
+          await manager.setRuleForSenderOfAnyTokenToPBU(user2, true, { from: user }).should.be.rejected
+          await manager.setRuleForSenderOfAnyTokenToPBU(user2, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user2, user)).to.be.bignumber.equal('-1')
+          expect(await manager.destinationLane(token.address, user2, user)).to.be.bignumber.equal('-1')
+          expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
+
+          await manager.setRuleForReceiverOfAnyTokenToPBU(user2, true, { from: user }).should.be.rejected
+          await manager.setRuleForReceiverOfAnyTokenToPBU(user2, true, { from: owner }).should.be.fulfilled
+
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
+          expect(await manager.destinationLane(token.address, user, user2)).to.be.bignumber.equal('-1')
+          expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
+        })
+
+        it('should send a message to the manual lane', async () => {
+          const tokenId1 = await mintNewNFT()
+          const tokenId2 = await mintNewNFT()
+          const tokenId3 = await mintNewNFT()
+
+          await sendFunctions[0](tokenId1).should.be.fulfilled
+          await contract.setForwardingRulesManager(manager.address, { from: owner }).should.be.fulfilled
+          await sendFunctions[1](tokenId2).should.be.fulfilled
+          await manager.setRuleForTokenToPBO(token.address, true, { from: owner }).should.be.fulfilled
+          await sendFunctions[2](tokenId3).should.be.fulfilled
+
+          const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+          expect(events.length).to.be.equal(3)
+          expect(events[0].returnValues.dataType).to.be.bignumber.equal('0')
+          expect(events[1].returnValues.dataType).to.be.bignumber.equal('128')
+          expect(events[2].returnValues.dataType).to.be.bignumber.equal('0')
+        })
+      })
+    }
   })
 }
 

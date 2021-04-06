@@ -1,6 +1,6 @@
 {
   "name": "omnibridge-nft",
-  "version": "1.0.0",
+  "version": "2.0.0-rc0",
   "description": "Omnibridge NFT AMB extension",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,9 @@
     "lint:js:fix": "eslint . --fix",
     "lint:sol": "solhint --max-warnings 0 \"contracts/**/*.sol\"",
     "lint:sol:prettier:fix": "prettier --write \"contracts/**/*.sol\"",
-    "deploy": "node deploy/deploy.js"
+    "deploy": "node deploy/deploy.js",
+    "e2e-tests:local": "./e2e-tests/run-tests.sh local",
+    "e2e-tests:public": "./e2e-tests/run-tests.sh"
   },
   "dependencies": {
     "axios": "^0.21.0",
