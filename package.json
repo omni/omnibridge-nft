@@ -1,6 +1,6 @@
 {
   "name": "omnibridge-nft",
-  "version": "1.0.0-rc1",
+  "version": "2.0.0-rc0",
   "description": "Omnibridge NFT AMB extension",
   "main": "index.js",
   "scripts": {
