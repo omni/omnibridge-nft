@@ -141,6 +141,11 @@ abstract contract BasicNFTOmnibridge is
         require(Address.isContract(_bridgedToken));
         require(!isTokenRegistered(_bridgedToken));
         require(bridgedTokenAddress(_nativeToken) == address(0));
+        // Unfortunately, there is no simple way to verify that the _nativeToken address
+        // does not belong to the bridged token on the other side,
+        // since information about bridged tokens addresses is not transferred back.
+        // Therefore, owner account calling this function SHOULD manually verify on the other side of the bridge that
+        // nativeTokenAddress(_nativeToken) == address(0) && isTokenRegistered(_nativeToken) == false.
 
         _setTokenAddressPair(_nativeToken, _bridgedToken);
     }
@@ -148,6 +153,8 @@ abstract contract BasicNFTOmnibridge is
     /**
      * @dev Allows to send to the other network some ERC721 token that can be forced into the contract
      * without the invocation of the required methods. (e. g. regular transferFrom without a call to onERC721Received)
+     * Before calling this method, it must be carefully investigated how imbalance happened
+     * in order to avoid an attempt to steal the funds from a token with double addresses.
      * @param _token address of the token contract.
      * @param _receiver the address that will receive the token on the other network.
      * @param _tokenId unique id of the bridged token.
@@ -181,8 +188,10 @@ abstract contract BasicNFTOmnibridge is
         address _receiver,
         uint256 _tokenId
     ) internal override {
+        // verify that token was indeed transferred
+        require(IERC721(_token).ownerOf(_tokenId) == address(this));
+
         if (!isTokenRegistered(_token)) {
-            require(IERC721(_token).ownerOf(_tokenId) == address(this));
             _setNativeTokenIsRegistered(_token, REGISTERED);
         }
 
