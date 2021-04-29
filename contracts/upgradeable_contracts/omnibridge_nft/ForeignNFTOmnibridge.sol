@@ -1,4 +1,5 @@
 pragma solidity 0.7.5;
+// solhint-disable-next-line compiler-version
 pragma abicoder v2;
 
 import "./BasicNFTOmnibridge.sol";
