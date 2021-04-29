@@ -7,54 +7,25 @@ import "../../../../upgradeability/EternalStorage.sol";
  * @dev Functionality for storing processed bridged operations.
  */
 abstract contract BridgeOperationsStorage is EternalStorage {
-    /**
-     * @dev Stores the bridged token of a message sent to the AMB bridge.
-     * @param _messageId of the message sent to the bridge.
-     * @param _token bridged token address.
-     */
-    function setMessageToken(bytes32 _messageId, address _token) internal {
-        addressStorage[keccak256(abi.encodePacked("messageToken", _messageId))] = _token;
+    function setMessageChecksum(bytes32 _messageId, bytes32 _hash) internal {
+        uintStorage[keccak256(abi.encodePacked("messageChecksum", _messageId))] = uint256(_hash);
+    }
+
+    function getMessageChecksum(bytes32 _messageId) internal view returns (bytes32) {
+        return bytes32(uintStorage[keccak256(abi.encodePacked("messageChecksum", _messageId))]);
     }
 
     /**
-     * @dev Tells the bridged token address of a message sent to the AMB bridge.
-     * @return address of a token contract.
+     * @dev Calculates message checksum, used for verifying correctness of the given parameters when fixing message.
      */
-    function messageToken(bytes32 _messageId) internal view returns (address) {
-        return addressStorage[keccak256(abi.encodePacked("messageToken", _messageId))];
-    }
-
-    /**
-     * @dev Stores the value of a message sent to the AMB bridge.
-     * @param _messageId of the message sent to the bridge.
-     * @param _value amount of tokens bridged.
-     */
-    function setMessageValue(bytes32 _messageId, uint256 _value) internal {
-        uintStorage[keccak256(abi.encodePacked("messageValue", _messageId))] = _value;
-    }
-
-    /**
-     * @dev Tells the amount of tokens of a message sent to the AMB bridge.
-     * @return value representing amount of tokens.
-     */
-    function messageValue(bytes32 _messageId) internal view returns (uint256) {
-        return uintStorage[keccak256(abi.encodePacked("messageValue", _messageId))];
-    }
-
-    /**
-     * @dev Stores the receiver of a message sent to the AMB bridge.
-     * @param _messageId of the message sent to the bridge.
-     * @param _recipient receiver of the tokens bridged.
-     */
-    function setMessageRecipient(bytes32 _messageId, address _recipient) internal {
-        addressStorage[keccak256(abi.encodePacked("messageRecipient", _messageId))] = _recipient;
-    }
-
-    /**
-     * @dev Tells the receiver of a message sent to the AMB bridge.
-     * @return address of the receiver.
-     */
-    function messageRecipient(bytes32 _messageId) internal view returns (address) {
-        return addressStorage[keccak256(abi.encodePacked("messageRecipient", _messageId))];
+    function _messageChecksum(
+        address _token,
+        address _sender,
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
+    ) internal pure returns (bytes32) {
+        bytes32 hash1 = keccak256(abi.encodePacked(_tokenIds));
+        bytes32 hash2 = keccak256(abi.encodePacked(_values));
+        return keccak256(abi.encodePacked(_token, _sender, hash1, hash2));
     }
 }

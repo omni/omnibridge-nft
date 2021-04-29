@@ -1,0 +1,109 @@
+pragma solidity 0.7.5;
+
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "../interfaces/IOwnable.sol";
+import "../interfaces/IBurnableMintableERC1155Token.sol";
+
+/**
+ * @title ERC1155BridgeToken
+ * @dev template token contract for bridged ERC1155 tokens.
+ */
+contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
+    string public name;
+    string public symbol;
+
+    // Optional mapping for token URIs
+    mapping(uint256 => string) private tokenURIs;
+    // Base URI
+    string private baseURI;
+
+    address public bridgeContract;
+
+    constructor(
+        string memory _name,
+        string memory _symbol,
+        address _bridgeContract
+    ) ERC1155("") {
+        name = _name;
+        symbol = _symbol;
+        bridgeContract = _bridgeContract;
+    }
+
+    /**
+     * @dev Throws if sender is not a bridge contract.
+     */
+    modifier onlyBridge() {
+        require(msg.sender == bridgeContract);
+        _;
+    }
+
+    /**
+     * @dev Throws if sender is not a bridge contract or bridge contract owner.
+     */
+    modifier onlyOwner() {
+        require(msg.sender == bridgeContract || msg.sender == IOwnable(bridgeContract).owner());
+        _;
+    }
+
+    /**
+     * @dev Mint new ERC1155 tokens.
+     * Only bridge contract is authorized to mint tokens.
+     * @param _to address of the newly created token owner.
+     */
+    function mint(
+        address _to,
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
+    ) external override onlyBridge {
+        _mintBatch(_to, _tokenIds, _values, new bytes(0));
+    }
+
+    /**
+     * @dev Burns some ERC1155 tokens.
+     * Only bridge contract is authorized to burn tokens.
+     */
+    function burn(uint256[] memory _tokenIds, uint256[] memory _values) external override onlyBridge {
+        _burnBatch(msg.sender, _tokenIds, _values);
+    }
+
+    /**
+     * @dev Updates the bridge contract address.
+     * Can be called by bridge owner after token contract was instantiated.
+     * @param _bridgeContract address of the new bridge contract.
+     */
+    function setBridgeContract(address _bridgeContract) external onlyOwner {
+        require(_bridgeContract != address(0));
+        bridgeContract = _bridgeContract;
+    }
+
+    /**
+     * @dev Sets the base URI for all tokens.
+     * Can be called by bridge owner after token contract was instantiated.
+     * @param _baseURI new base URI.
+     */
+    function setBaseURI(string calldata _baseURI) external onlyOwner {
+        baseURI = _baseURI;
+    }
+
+    /**
+     * @dev Sets the URI for the particular token.
+     * Can be called by bridge owner after token bridging.
+     * @param _tokenId URI for the bridged token metadata.
+     * @param _tokenURI new token URI.
+     */
+    function setTokenURI(uint256 _tokenId, string calldata _tokenURI) external onlyOwner {
+        tokenURIs[_tokenId] = _tokenURI;
+    }
+
+    function uri(uint256 _tokenId) external view override returns (string memory) {
+        string memory tokenURI = tokenURIs[_tokenId];
+        string memory base = baseURI;
+
+        // If there is no base URI, return the token URI.
+        if (bytes(base).length == 0) {
+            return tokenURI;
+        }
+        // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
+        return string(abi.encodePacked(base, tokenURI));
+    }
+}

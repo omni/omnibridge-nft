@@ -8,20 +8,30 @@ import "./BridgeOperationsStorage.sol";
  * @dev Functionality for fixing failed bridging operations.
  */
 abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsStorage {
-    event FailedMessageFixed(bytes32 indexed messageId, address token, address recipient, uint256 value);
+    event FailedMessageFixed(bytes32 indexed messageId, address token);
 
     /**
      * @dev Method to be called when a bridged message execution failed. It will generate a new message requesting to
      * fix/roll back the transferred assets on the other network.
      * @param _messageId id of the message which execution failed.
      */
-    function requestFailedMessageFix(bytes32 _messageId) external {
+    function requestFailedMessageFix(
+        bytes32 _messageId,
+        address _token,
+        address _sender,
+        uint256[] calldata _tokenIds,
+        uint256[] calldata _values
+    ) external {
+        require(_tokenIds.length > 0);
+        require(_values.length == 0 || _tokenIds.length == _values.length);
+
         IAMB bridge = bridgeContract();
         require(!bridge.messageCallStatus(_messageId));
         require(bridge.failedMessageReceiver(_messageId) == address(this));
         require(bridge.failedMessageSender(_messageId) == mediatorContractOnOtherSide());
 
-        bytes memory data = abi.encodeWithSelector(this.fixFailedMessage.selector, _messageId);
+        bytes memory data =
+            abi.encodeWithSelector(this.fixFailedMessage.selector, _messageId, _token, _sender, _tokenIds, _values);
         _passMessage(data, false);
     }
 
@@ -30,15 +40,19 @@ abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsS
      * It uses the information stored by passMessage method when the assets were initially transferred
      * @param _messageId id of the message which execution failed on the other network.
      */
-    function fixFailedMessage(bytes32 _messageId) public onlyMediator {
+    function fixFailedMessage(
+        bytes32 _messageId,
+        address _token,
+        address _sender,
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
+    ) public onlyMediator {
         require(!messageFixed(_messageId));
+        require(getMessageChecksum(_messageId) == _messageChecksum(_token, _sender, _tokenIds, _values));
 
-        address token = messageToken(_messageId);
-        address recipient = messageRecipient(_messageId);
-        uint256 value = messageValue(_messageId);
         setMessageFixed(_messageId);
-        executeActionOnFixedTokens(token, recipient, value);
-        emit FailedMessageFixed(_messageId, token, recipient, value);
+        executeActionOnFixedTokens(_token, _sender, _tokenIds, _values);
+        emit FailedMessageFixed(_messageId, _token);
     }
 
     /**
@@ -60,6 +74,7 @@ abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsS
     function executeActionOnFixedTokens(
         address _token,
         address _recipient,
-        uint256 _value
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
     ) internal virtual;
 }

@@ -1,4 +1,5 @@
 pragma solidity 0.7.5;
+pragma abicoder v2;
 
 import "@openzeppelin/contracts/utils/Address.sol";
 import "./NFTForwardingRulesManager.sol";

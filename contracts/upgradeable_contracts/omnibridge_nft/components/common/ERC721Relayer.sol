@@ -1,15 +1,14 @@
 pragma solidity 0.7.5;
 
 import "../../../../interfaces/IBurnableMintableERC721Token.sol";
-import "../../../../libraries/Bytes.sol";
 import "../../../ReentrancyGuard.sol";
-import "../../../BasicAMBMediator.sol";
+import "./BaseRelayer.sol";
 
 /**
  * @title ERC721Relayer
- * @dev Functionality for bridging multiple tokens to the other side of the bridge.
+ * @dev Functionality for bridging multiple ERC721 tokens to the other side of the bridge.
  */
-abstract contract ERC721Relayer is BasicAMBMediator, ReentrancyGuard {
+abstract contract ERC721Relayer is BaseRelayer, ReentrancyGuard {
     /**
      * @dev ERC721 transfer callback function.
      * @param _from address of token sender.
@@ -23,7 +22,13 @@ abstract contract ERC721Relayer is BasicAMBMediator, ReentrancyGuard {
         bytes calldata _data
     ) external returns (bytes4) {
         if (!lock()) {
-            bridgeSpecificActionsOnTokenTransfer(msg.sender, _from, chooseReceiver(_from, _data), _tokenId);
+            bridgeSpecificActionsOnTokenTransfer(
+                msg.sender,
+                _from,
+                _chooseReceiver(_from, _data),
+                _singletonArray(_tokenId),
+                new uint256[](0)
+            );
         }
         return msg.sig;
     }
@@ -74,27 +79,12 @@ abstract contract ERC721Relayer is BasicAMBMediator, ReentrancyGuard {
         setLock(true);
         _token.transferFrom(msg.sender, address(this), _tokenId);
         setLock(false);
-        bridgeSpecificActionsOnTokenTransfer(address(_token), msg.sender, _receiver, _tokenId);
+        bridgeSpecificActionsOnTokenTransfer(
+            address(_token),
+            msg.sender,
+            _receiver,
+            _singletonArray(_tokenId),
+            new uint256[](0)
+        );
     }
-
-    /**
-     * @dev Helper function for alternative receiver feature. Chooses the actual receiver out of sender and passed data.
-     * @param _from address of the token sender.
-     * @param _data passed data in the transfer message.
-     * @return recipient address of the receiver on the other side.
-     */
-    function chooseReceiver(address _from, bytes memory _data) internal pure returns (address recipient) {
-        recipient = _from;
-        if (_data.length > 0) {
-            require(_data.length == 20);
-            recipient = Bytes.bytesToAddress(_data);
-        }
-    }
-
-    function bridgeSpecificActionsOnTokenTransfer(
-        address _token,
-        address _from,
-        address _receiver,
-        uint256 _tokenId
-    ) internal virtual;
 }
