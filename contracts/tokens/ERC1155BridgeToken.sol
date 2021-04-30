@@ -46,9 +46,11 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
     }
 
     /**
-     * @dev Mint new ERC1155 tokens.
+     * @dev Mint a batch of new ERC1155 tokens.
      * Only bridge contract is authorized to mint tokens.
      * @param _to address of the newly created token owner.
+     * @param _tokenIds array of token ids to mint.
+     * @param _values array of corresponding mint amounts for each tokenId.
      */
     function mint(
         address _to,
@@ -59,8 +61,10 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
     }
 
     /**
-     * @dev Burns some ERC1155 tokens.
+     * @dev Burns a batch of ERC1155 tokens.
      * Only bridge contract is authorized to burn tokens.
+     * @param _tokenIds array of token ids to burn.
+     * @param _values array of corresponding burn amounts for each tokenId.
      */
     function burn(uint256[] memory _tokenIds, uint256[] memory _values) external override onlyBridge {
         _burnBatch(msg.sender, _tokenIds, _values);
@@ -95,6 +99,11 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
         tokenURIs[_tokenId] = _tokenURI;
     }
 
+    /**
+     * @dev Tells the metadata URI for the particular tokenId.
+     * @param _tokenId unique token id for which to return metadata URI.
+     * @return token metadata URI.
+     */
     function uri(uint256 _tokenId) external view override returns (string memory) {
         string memory tokenURI = tokenURIs[_tokenId];
         string memory base = baseURI;

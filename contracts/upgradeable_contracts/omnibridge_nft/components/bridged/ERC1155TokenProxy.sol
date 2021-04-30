@@ -28,7 +28,7 @@ contract ERC1155TokenProxy is Proxy {
     address private bridgeContract;
 
     /**
-     * @dev Creates an upgradeable token proxy for ERC721BridgeToken.sol, initializes its eternalStorage.
+     * @dev Creates an upgradeable token proxy for ERC1155BridgeToken.sol, initializes its eternalStorage.
      * @param _tokenImage address of the token image used for mirroring all functions.
      * @param _name token name.
      * @param _symbol token symbol.

@@ -49,6 +49,7 @@ abstract contract ERC1155Relayer is IERC1155TokenReceiver, BaseRelayer {
         bytes calldata _data
     ) external override returns (bytes4) {
         require(_tokenIds.length == _values.length);
+        require(_tokenIds.length > 0);
         require(_tokenIds.length <= MAX_BATCH_BRIDGE_LIMIT);
         bridgeSpecificActionsOnTokenTransfer(msg.sender, _from, _chooseReceiver(_from, _data), _tokenIds, _values);
         return msg.sig;

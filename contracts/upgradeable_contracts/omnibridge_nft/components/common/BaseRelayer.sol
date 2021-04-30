@@ -21,9 +21,14 @@ abstract contract BaseRelayer {
         }
     }
 
-    function _singletonArray(uint256 value) internal pure returns (uint256[] memory) {
+    /**
+     * @dev Wraps a given uint256 value into an array with a single element.
+     * @param _value argument to wrap.
+     * @return wrapper array.
+     */
+    function _singletonArray(uint256 _value) internal pure returns (uint256[] memory) {
         uint256[] memory array = new uint256[](1);
-        array[0] = value;
+        array[0] = _value;
         return array;
     }
 

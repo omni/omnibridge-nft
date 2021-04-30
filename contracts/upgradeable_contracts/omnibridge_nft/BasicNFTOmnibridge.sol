@@ -190,6 +190,16 @@ abstract contract BasicNFTOmnibridge is
         _recordBridgeOperation(_messageId, _token, _receiver, _tokenIds, values);
     }
 
+    /**
+     * @dev Allows to send to the other network some ERC1155 token that can be forced into the contract
+     * without the invocation of the required methods.
+     * Before calling this method, it must be carefully investigated how imbalance happened
+     * in order to avoid an attempt to steal the funds from a token with double addresses.
+     * @param _token address of the token contract.
+     * @param _receiver the address that will receive the token on the other network.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values corresponding amounts of the bridged tokens.
+     */
     function fixMediatorBalanceERC1155(
         address _token,
         address _receiver,

@@ -13,7 +13,13 @@ abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsS
     /**
      * @dev Method to be called when a bridged message execution failed. It will generate a new message requesting to
      * fix/roll back the transferred assets on the other network.
+     * It is important to specify parameters very carefully.
+     * Please, take exact values from the TokensBridgingInitiated event. Otherwise, execution will revert.
      * @param _messageId id of the message which execution failed.
+     * @param _token address of the bridged token on the other side of the bridge.
+     * @param _sender address of the tokens sender on the other side.
+     * @param _tokenIds ids of the sent tokens.
+     * @param _values amounts of tokens sent.
      */
     function requestFailedMessageFix(
         bytes32 _messageId,
@@ -37,8 +43,12 @@ abstract contract FailedMessagesProcessor is BasicAMBMediator, BridgeOperationsS
 
     /**
      * @dev Handles the request to fix transferred assets which bridged message execution failed on the other network.
-     * It uses the information stored by passMessage method when the assets were initially transferred
-     * @param _messageId id of the message which execution failed on the other network.
+     * Compares the reconstructed message checksum with the original one. Revert if message params were altered.
+     * @param _messageId id of the message which execution failed on this side of the bridge.
+     * @param _token address of the bridged token on this side of the bridge.
+     * @param _sender address of the tokens sender on this side of the bridge.
+     * @param _tokenIds ids of the sent tokens.
+     * @param _values amounts of tokens sent.
      */
     function fixFailedMessage(
         bytes32 _messageId,
