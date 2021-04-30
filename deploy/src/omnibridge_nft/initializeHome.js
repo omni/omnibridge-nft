@@ -6,23 +6,47 @@ const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN } = require('
 
 function initializeMediator({
   contract,
-  params: { bridgeContract, mediatorContract, owner, tokenImage, gasLimitManager, forwardingRulesManager },
+  params: {
+    bridgeContract,
+    mediatorContract,
+    owner,
+    tokenImageERC721,
+    tokenImageERC1155,
+    gasLimitManager,
+    forwardingRulesManager,
+  },
 }) {
   console.log(`
     AMB contract: ${bridgeContract},
     Mediator contract: ${mediatorContract},
     OWNER: ${owner},
-    TOKEN_IMAGE: ${tokenImage},
+    ERC721_TOKEN_IMAGE: ${tokenImageERC721},
+    ERC1155_TOKEN_IMAGE: ${tokenImageERC1155},
     GAS_LIMIT_MANAGER: ${gasLimitManager},
     FORWARDING_RULES_MANAGER: ${forwardingRulesManager}
     `)
 
   return contract.methods
-    .initialize(bridgeContract, mediatorContract, gasLimitManager, owner, tokenImage, forwardingRulesManager)
+    .initialize(
+      bridgeContract,
+      mediatorContract,
+      gasLimitManager,
+      owner,
+      tokenImageERC721,
+      tokenImageERC1155,
+      forwardingRulesManager
+    )
     .encodeABI()
 }
 
-async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRulesManager, gasLimitManager }) {
+async function initialize({
+  homeBridge,
+  foreignBridge,
+  tokenImageERC721,
+  tokenImageERC1155,
+  forwardingRulesManager,
+  gasLimitManager,
+}) {
   let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
   const mediatorContract = new web3Home.eth.Contract(HomeNFTOmnibridge.abi, homeBridge)
 
@@ -35,7 +59,8 @@ async function initialize({ homeBridge, foreignBridge, tokenImage, forwardingRul
       mediatorContract: foreignBridge,
       gasLimitManager,
       owner: HOME_BRIDGE_OWNER,
-      tokenImage,
+      tokenImageERC721,
+      tokenImageERC1155,
       forwardingRulesManager,
     },
   })
