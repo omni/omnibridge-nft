@@ -179,7 +179,7 @@ async function makeExecuteManually(homeAMB, foreignAMB, web3, homeBlockNumber) {
   }
 }
 
-function makeCheckTransfer(web3, isERC1155=false) {
+function makeCheckTransfer(web3, isERC1155 = false) {
   const eventABI = isERC1155
     ? ERC1155.abi.find((e) => e.type === 'event' && e.name === 'TransferBatch')
     : ERC721.abi.find((e) => e.type === 'event' && e.name === 'Transfer' && e.inputs.length === 3)
@@ -202,7 +202,7 @@ function makeCheckTransfer(web3, isERC1155=false) {
       .map((log) => web3.eth.abi.decodeLog(eventABI.inputs, log.data, log.topics.slice(1)))
     assert.ok(transfers.length > 0, `No transfers are found for the token ${tokenAddr}`)
     const checkTransfer = isERC1155
-      ? (e) => e.from === fromAddr && e.to === toAddr && e.ids.length === 1 && e.ids[0] === tokenId.toString() && e.values[0] === '1'
+      ? (e) => e.from === fromAddr && e.to === toAddr && e.ids[0] === tokenId.toString() && e.values[0] === '1'
       : (e) => e.from === fromAddr && e.to === toAddr && e.tokenId === tokenId.toString()
     assert.ok(
       transfers.some(checkTransfer),
@@ -211,7 +211,7 @@ function makeCheckTransfer(web3, isERC1155=false) {
   }
 }
 
-function makeGetBridgedToken(web3, mediator, options, isERC1155=false) {
+function makeGetBridgedToken(web3, mediator, options, isERC1155 = false) {
   return async (token) => {
     console.log('Getting address of the bridged token')
     const bridgedAddress = await mediator.methods.bridgedTokenAddress(toAddress(token)).call()
@@ -232,7 +232,7 @@ function makeWithDisabledExecution(mediator, owner) {
   }
 }
 
-function makeMint(token, to, isERC1155=false) {
+function makeMint(token, to, isERC1155 = false) {
   let id = 1
   return async () => {
     console.log(`Minting ${isERC1155 ? 'ERC1155' : 'ERC721'} token #${id} to ${to}`)
@@ -245,7 +245,7 @@ function makeMint(token, to, isERC1155=false) {
   }
 }
 
-function makeRelayToken(mediator, defaultFrom, isERC1155=false) {
+function makeRelayToken(mediator, defaultFrom, isERC1155 = false) {
   return (token, id, options) => {
     const opts = options || {}
     const from = opts.from || defaultFrom
@@ -254,9 +254,7 @@ function makeRelayToken(mediator, defaultFrom, isERC1155=false) {
       ? 'safeTransferFrom(address,address,uint256,uint256,bytes)'
       : 'safeTransferFrom(address,address,uint256,bytes)'
     const method = token.methods[signature]
-    const args = isERC1155
-      ? [from, toAddress(mediator), id, 1, data]
-      : [from, toAddress(mediator), id, data]
+    const args = isERC1155 ? [from, toAddress(mediator), id, 1, data] : [from, toAddress(mediator), id, data]
     console.log(`Relaying ${isERC1155 ? 'ERC1155' : 'ERC721'} token #${id}, data: ${data}`)
     return method(...args).send({ from })
   }

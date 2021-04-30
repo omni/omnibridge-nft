@@ -10,7 +10,9 @@ async function run({ home, foreign, users, owner }) {
   await erc721Token.methods.transferFrom(users[0], mediator.options.address, id).send()
 
   console.log('Sending fixMediatorBalance request to the Home Mediator')
-  const receipt = await mediator.methods.fixMediatorBalanceERC721(erc721Token.options.address, users[0], [id]).send({ from: owner })
+  const receipt = await mediator.methods
+    .fixMediatorBalanceERC721(erc721Token.options.address, users[0], [id])
+    .send({ from: owner })
   const relayTxHash = await foreign.waitUntilProcessed(receipt)
   const bridgedToken = await foreign.getBridgedTokenERC721(erc721Token)
 
