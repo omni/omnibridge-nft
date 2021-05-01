@@ -181,7 +181,7 @@ abstract contract BasicNFTOmnibridge is
         uint256[] calldata _tokenIds
     ) external onlyIfUpgradeabilityOwner {
         require(isRegisteredAsNativeToken(_token));
-        require(_tokenIds.length <= MAX_BATCH_BRIDGE_LIMIT);
+        require(_tokenIds.length > 0);
 
         uint256[] memory values = new uint256[](0);
 
@@ -208,7 +208,7 @@ abstract contract BasicNFTOmnibridge is
     ) external onlyIfUpgradeabilityOwner {
         require(isRegisteredAsNativeToken(_token));
         require(_tokenIds.length == _values.length);
-        require(_tokenIds.length <= MAX_BATCH_BRIDGE_LIMIT);
+        require(_tokenIds.length > 0);
 
         bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, _values);
         bytes32 _messageId = _passMessage(data, true);
@@ -281,6 +281,7 @@ abstract contract BasicNFTOmnibridge is
 
             // process token which bridged alternative was already ACKed to be deployed
             if (isBridgedTokenDeployAcknowledged(_token)) {
+                require(_tokenIds.length <= MAX_BATCH_BRIDGE_LIMIT);
                 return
                     abi.encodeWithSelector(
                         this.handleBridgedNFT.selector,
@@ -291,6 +292,8 @@ abstract contract BasicNFTOmnibridge is
                         tokenURIs
                     );
             }
+
+            require(_tokenIds.length <= MAX_BATCH_BRIDGE_AND_DEPLOY_LIMIT);
 
             string memory name = _readName(_token);
             string memory symbol = _readSymbol(_token);

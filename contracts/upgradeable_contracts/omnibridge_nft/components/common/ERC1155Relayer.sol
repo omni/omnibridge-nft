@@ -8,7 +8,10 @@ import "./BaseRelayer.sol";
  * @dev Functionality for bridging multiple ERC1155 tokens to the other side of the bridge.
  */
 abstract contract ERC1155Relayer is IERC1155TokenReceiver, BaseRelayer {
-    uint256 internal constant MAX_BATCH_BRIDGE_LIMIT = 20;
+    // max batch size, so that deployAndHandleBridgedNFT fits in 1.000.000 gas
+    uint256 internal constant MAX_BATCH_BRIDGE_AND_DEPLOY_LIMIT = 14;
+    // max batch size, so that handleBridgedNFT fits in 1.000.000 gas
+    uint256 internal constant MAX_BATCH_BRIDGE_LIMIT = 19;
 
     /**
      * @dev ERC1155 transfer callback function.
@@ -50,7 +53,6 @@ abstract contract ERC1155Relayer is IERC1155TokenReceiver, BaseRelayer {
     ) external override returns (bytes4) {
         require(_tokenIds.length == _values.length);
         require(_tokenIds.length > 0);
-        require(_tokenIds.length <= MAX_BATCH_BRIDGE_LIMIT);
         bridgeSpecificActionsOnTokenTransfer(msg.sender, _from, _chooseReceiver(_from, _data), _tokenIds, _values);
         return msg.sig;
     }
