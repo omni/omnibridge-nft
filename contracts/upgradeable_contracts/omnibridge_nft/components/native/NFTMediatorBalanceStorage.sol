@@ -12,7 +12,7 @@ contract NFTMediatorBalanceStorage is EternalStorage {
      * since does not take into account forced tokens.
      * @param _token address of token contract.
      * @param _tokenId id of the new owned token.
-     * @return amount of owned tokens, 0 or 1 for regular NFTs.
+     * @return amount of owned tokens, 0 or 1 for ERC721 NFTs.
      */
     function mediatorOwns(address _token, uint256 _tokenId) public view returns (uint256 amount) {
         bytes32 key = _getStorageKey(_token, _tokenId);
@@ -25,7 +25,7 @@ contract NFTMediatorBalanceStorage is EternalStorage {
      * @dev Updates ownership information for the particular token.
      * @param _token address of token contract.
      * @param _tokenId id of the new owned token.
-     * @param _value amount of owned tokens, 0 or 1 for regular NFTs.
+     * @param _value amount of owned tokens, 0 or 1 for ERC721 NFTs.
      */
     function _setMediatorOwns(
         address _token,
