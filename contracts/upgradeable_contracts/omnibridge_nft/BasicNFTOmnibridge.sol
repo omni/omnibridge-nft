@@ -77,8 +77,8 @@ abstract contract BasicNFTOmnibridge is
      */
     function deployAndHandleBridgedNFT(
         address _token,
-        string calldata _name,
-        string calldata _symbol,
+        string memory _name,
+        string memory _symbol,
         address _recipient,
         uint256[] calldata _tokenIds,
         uint256[] calldata _values,
@@ -86,17 +86,15 @@ abstract contract BasicNFTOmnibridge is
     ) external onlyMediator {
         address bridgedToken = bridgedTokenAddress(_token);
         if (bridgedToken == address(0)) {
-            string memory name = _name;
-            string memory symbol = _symbol;
-            if (bytes(name).length == 0) {
-                require(bytes(symbol).length > 0);
-                name = symbol;
-            } else if (bytes(symbol).length == 0) {
-                symbol = name;
+            if (bytes(_name).length == 0) {
+                require(bytes(_symbol).length > 0);
+                _name = _symbol;
+            } else if (bytes(_symbol).length == 0) {
+                _symbol = _name;
             }
             bridgedToken = _values.length > 0
-                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _transformName(name), symbol, address(this)))
-                : address(new ERC721TokenProxy(tokenImageERC721(), _transformName(name), symbol, address(this)));
+                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _transformName(_name), _symbol, address(this)))
+                : address(new ERC721TokenProxy(tokenImageERC721(), _transformName(_name), _symbol, address(this)));
             _setTokenAddressPair(_token, bridgedToken);
         }
 
