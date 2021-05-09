@@ -39,8 +39,6 @@ abstract contract BridgeOperationsStorage is EternalStorage {
         uint256[] memory _tokenIds,
         uint256[] memory _values
     ) internal pure returns (bytes32) {
-        bytes32 hash1 = keccak256(abi.encodePacked(_tokenIds));
-        bytes32 hash2 = keccak256(abi.encodePacked(_values));
-        return keccak256(abi.encodePacked(_token, _sender, hash1, hash2));
+        return keccak256(abi.encode(_token, _sender, _tokenIds, _values));
     }
 }
