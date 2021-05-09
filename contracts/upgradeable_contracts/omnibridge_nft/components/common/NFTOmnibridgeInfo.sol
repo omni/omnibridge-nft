@@ -10,10 +10,17 @@ contract NFTOmnibridgeInfo is VersionableBridge {
     event TokensBridgingInitiated(
         address indexed token,
         address indexed sender,
-        uint256 tokenId,
+        uint256[] tokenIds,
+        uint256[] values,
         bytes32 indexed messageId
     );
-    event TokensBridged(address indexed token, address indexed recipient, uint256 tokenId, bytes32 indexed messageId);
+    event TokensBridged(
+        address indexed token,
+        address indexed recipient,
+        uint256[] tokenIds,
+        uint256[] values,
+        bytes32 indexed messageId
+    );
 
     /**
      * @dev Tells the bridge interface version that this contract supports.
@@ -31,7 +38,7 @@ contract NFTOmnibridgeInfo is VersionableBridge {
             uint64 patch
         )
     {
-        return (2, 0, 1);
+        return (3, 0, 0);
     }
 
     /**

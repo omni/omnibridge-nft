@@ -67,28 +67,36 @@ const HomeABI = [...require('../build/contracts/HomeNFTOmnibridge.json').abi, ..
 const ForeignABI = [...require('../build/contracts/ForeignNFTOmnibridge.json').abi, ...AMBEventABI]
 
 const ERC721 = require('../build/contracts/ERC721BridgeToken.json')
+const ERC1155 = require('../build/contracts/ERC1155BridgeToken.json')
 
 const scenarios = [
-  require('./scenarios/bridgeNativeForeignTokens'),
-  require('./scenarios/bridgeNativeHomeTokens'),
-  require('./scenarios/bridgeNativeForeignTokensToOtherUser'),
-  require('./scenarios/bridgeNativeHomeTokensToOtherUser'),
-  require('./scenarios/fixForeignMediatorBalance'),
-  require('./scenarios/fixHomeMediatorBalance'),
-  require('./scenarios/homeRequestFailedMessageFix'),
-  require('./scenarios/foreignRequestFailedMessageFix'),
+  require('./scenarios/erc1155/bridgeNativeForeignTokens'),
+  require('./scenarios/erc1155/bridgeNativeHomeTokens'),
+  require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
+  require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
+  require('./scenarios/erc721/bridgeNativeForeignTokens'),
+  require('./scenarios/erc721/bridgeNativeHomeTokens'),
+  require('./scenarios/erc721/bridgeNativeForeignTokensToOtherUser'),
+  require('./scenarios/erc721/bridgeNativeHomeTokensToOtherUser'),
+  require('./scenarios/erc721/fixForeignMediatorBalance'),
+  require('./scenarios/erc721/fixHomeMediatorBalance'),
+  require('./scenarios/erc721/homeRequestFailedMessageFix'),
+  require('./scenarios/erc721/foreignRequestFailedMessageFix'),
 ]
 const { ZERO_ADDRESS, toAddress, addPendingTxLogger, signatureToVRS, packSignatures } = require('./utils')
 
-const TokenABI = [...ERC721.abi, ...filterEvents(HomeABI), ...AMBEventABI]
+const ERC721TokenABI = [...ERC721.abi, ...filterEvents(HomeABI), ...AMBEventABI]
+const ERC1155TokenABI = [...ERC1155.abi, ...filterEvents(HomeABI), ...AMBEventABI]
 
 const {
   HOME_RPC_URL,
   FOREIGN_RPC_URL,
   HOME_MEDIATOR_ADDRESS,
   FOREIGN_MEDIATOR_ADDRESS,
-  HOME_TOKEN_ADDRESS,
-  FOREIGN_TOKEN_ADDRESS,
+  HOME_ERC721_TOKEN_ADDRESS,
+  HOME_ERC1155_TOKEN_ADDRESS,
+  FOREIGN_ERC721_TOKEN_ADDRESS,
+  FOREIGN_ERC1155_TOKEN_ADDRESS,
   HOME_GAS_PRICE,
   FOREIGN_GAS_PRICE,
   TEST_ACCOUNT_PRIVATE_KEY,
@@ -105,12 +113,6 @@ function deploy(web3, options, abi, bytecode, args) {
     .send({
       gas: 5000000,
     })
-}
-
-async function deployToken(web3, options, bytecode = ERC721.bytecode) {
-  const token = await deploy(web3, options, TokenABI, bytecode, ['Test Token', 'TST', options.from])
-  console.log(`Deployed token ${token.options.address}`)
-  return token
 }
 
 const findMessageId = (receipt) =>
@@ -177,37 +179,44 @@ async function makeExecuteManually(homeAMB, foreignAMB, web3, homeBlockNumber) {
   }
 }
 
-function makeCheckTransfer(web3) {
+function makeCheckTransfer(web3, isERC1155 = false) {
+  const eventABI = isERC1155
+    ? ERC1155.abi.find((e) => e.type === 'event' && e.name === 'TransferBatch')
+    : ERC721.abi.find((e) => e.type === 'event' && e.name === 'Transfer' && e.inputs.length === 3)
+  const sig = web3.eth.abi.encodeEventSignature(eventABI)
+  const eventToStr = isERC1155
+    ? (e) => `- TransferBatch(${e.operator}, ${e.from}, ${e.to}, [${e.ids.join(', ')}], [${e.values.join(', ')}])`
+    : (e) => `- Transfer(${e.from}, ${e.to}, ${e.tokenId})`
+
   return async (txHash, token, from, to, tokenId) => {
     const tokenAddr = toAddress(token)
     const fromAddr = toAddress(from)
     const toAddr = toAddress(to)
-    const str = `Transfer(${fromAddr}, ${toAddr}, ${tokenId})`
+    const str = isERC1155
+      ? `TransferBatch(${fromAddr}, ${fromAddr}, ${toAddr}, [${tokenId}], [1])`
+      : `Transfer(${fromAddr}, ${toAddr}, ${tokenId})`
     console.log(`Checking if transaction has the required ${str}`)
     const { logs } = await web3.eth.getTransactionReceipt(txHash)
-    const sig = web3.eth.abi.encodeEventSignature('Transfer(address,address,uint256)')
-    const inputs = ERC721.abi.find((e) => e.type === 'event' && e.name === 'Transfer' && e.inputs.length === 3).inputs
     const transfers = logs
       .filter((log) => log.topics[0] === sig && log.address === tokenAddr)
-      .map((log) => web3.eth.abi.decodeLog(inputs, log.data, log.topics.slice(1)))
+      .map((log) => web3.eth.abi.decodeLog(eventABI.inputs, log.data, log.topics.slice(1)))
     assert.ok(transfers.length > 0, `No transfers are found for the token ${tokenAddr}`)
+    const checkTransfer = isERC1155
+      ? (e) => e.from === fromAddr && e.to === toAddr && e.ids[0] === tokenId.toString() && e.values[0] === '1'
+      : (e) => e.from === fromAddr && e.to === toAddr && e.tokenId === tokenId.toString()
     assert.ok(
-      transfers.some(
-        (transfer) => transfer.from === fromAddr && transfer.to === toAddr && transfer.tokenId === tokenId.toString()
-      ),
-      `No ${str} was found in the logs, found transfers:\n${transfers
-        .map((e) => `- Transfer(${e.from}, ${e.to}, ${e.tokenId})`)
-        .join(',\n')}`
+      transfers.some(checkTransfer),
+      `No ${str} was found in the logs, found transfers:\n${transfers.map(eventToStr).join(',\n')}`
     )
   }
 }
 
-function makeGetBridgedToken(web3, mediator, options) {
+function makeGetBridgedToken(web3, mediator, options, isERC1155 = false) {
   return async (token) => {
     console.log('Getting address of the bridged token')
     const bridgedAddress = await mediator.methods.bridgedTokenAddress(toAddress(token)).call()
     assert.notStrictEqual(bridgedAddress, ZERO_ADDRESS, 'Bridged token address is not initialized')
-    return new web3.eth.Contract(TokenABI, bridgedAddress, options)
+    return new web3.eth.Contract(isERC1155 ? ERC1155TokenABI : ERC721TokenABI, bridgedAddress, options)
   }
 }
 
@@ -223,23 +232,31 @@ function makeWithDisabledExecution(mediator, owner) {
   }
 }
 
-function makeMint(token, to) {
+function makeMint(token, to, isERC1155 = false) {
   let id = 1
   return async () => {
-    console.log(`Minting token #${id} to ${to}`)
-    await token.methods.mint(to, id).send()
+    console.log(`Minting ${isERC1155 ? 'ERC1155' : 'ERC721'} token #${id} to ${to}`)
+    if (isERC1155) {
+      await token.methods.mint(to, [id], [1]).send()
+    } else {
+      await token.methods.mint(to, id).send()
+    }
     return id++
   }
 }
 
-function makeRelayToken(mediator, defaultFrom) {
+function makeRelayToken(mediator, defaultFrom, isERC1155 = false) {
   return (token, id, options) => {
     const opts = options || {}
     const from = opts.from || defaultFrom
     const data = opts.to ? toAddress(opts.to) + (opts.data || '0x').slice(2) : '0x'
-    const method = token.methods['safeTransferFrom(address,address,uint256,bytes)']
-    console.log(`Relaying token #${id}, data: ${data}`)
-    return method(from, toAddress(mediator), id, data).send({ from })
+    const signature = isERC1155
+      ? 'safeTransferFrom(address,address,uint256,uint256,bytes)'
+      : 'safeTransferFrom(address,address,uint256,bytes)'
+    const method = token.methods[signature]
+    const args = isERC1155 ? [from, toAddress(mediator), id, 1, data] : [from, toAddress(mediator), id, data]
+    console.log(`Relaying ${isERC1155 ? 'ERC1155' : 'ERC721'} token #${id}, data: ${data}`)
+    return method(...args).send({ from })
   }
 }
 
@@ -286,21 +303,38 @@ async function createEnv(web3Home, web3Foreign) {
   )
 
   console.log('Initializing tokens')
-  let homeToken
-  let foreignToken
-  if (HOME_TOKEN_ADDRESS) {
-    console.log('Using existing Home token')
-    homeToken = new web3Home.eth.Contract(TokenABI, HOME_TOKEN_ADDRESS, homeOptions)
+  let homeTokenERC721
+  let homeTokenERC1155
+  let foreignTokenERC721
+  let foreignTokenERC1155
+  const args = ['Test Token', 'TST', users[0]]
+  if (HOME_ERC721_TOKEN_ADDRESS) {
+    console.log('Using existing Home ERC721 token')
+    homeTokenERC721 = new web3Home.eth.Contract(ERC721TokenABI, HOME_ERC721_TOKEN_ADDRESS, homeOptions)
   } else {
-    console.log('Deploying test Home token')
-    homeToken = await deployToken(web3Home, homeOptions)
+    console.log('Deploying test Home ERC721 token')
+    homeTokenERC721 = await deploy(web3Home, homeOptions, ERC721TokenABI, ERC721.bytecode, args)
   }
-  if (FOREIGN_TOKEN_ADDRESS) {
-    console.log('Using existing Foreign token')
-    foreignToken = new web3Foreign.eth.Contract(TokenABI, FOREIGN_TOKEN_ADDRESS, foreignOptions)
+  if (HOME_ERC1155_TOKEN_ADDRESS) {
+    console.log('Using existing Home ERC1155 token')
+    homeTokenERC1155 = new web3Home.eth.Contract(ERC1155TokenABI, HOME_ERC1155_TOKEN_ADDRESS, homeOptions)
   } else {
-    console.log('Deploying test Foreign token')
-    foreignToken = await deployToken(web3Foreign, foreignOptions)
+    console.log('Deploying test Home ERC1155 token')
+    homeTokenERC1155 = await deploy(web3Home, homeOptions, ERC1155TokenABI, ERC1155.bytecode, args)
+  }
+  if (FOREIGN_ERC721_TOKEN_ADDRESS) {
+    console.log('Using existing Foreign ERC721 token')
+    foreignTokenERC721 = new web3Foreign.eth.Contract(ERC721TokenABI, FOREIGN_ERC721_TOKEN_ADDRESS, foreignOptions)
+  } else {
+    console.log('Deploying test Foreign ERC721 token')
+    foreignTokenERC721 = await deploy(web3Foreign, foreignOptions, ERC721TokenABI, ERC721.bytecode, args)
+  }
+  if (FOREIGN_ERC1155_TOKEN_ADDRESS) {
+    console.log('Using existing Foreign ERC1155 token')
+    foreignTokenERC1155 = new web3Foreign.eth.Contract(ERC1155TokenABI, FOREIGN_ERC1155_TOKEN_ADDRESS, foreignOptions)
+  } else {
+    console.log('Deploying test Foreign ERC1155 token')
+    foreignTokenERC1155 = await deploy(web3Foreign, foreignOptions, ERC1155TokenABI, ERC1155.bytecode, args)
   }
 
   console.log('Fetching block numbers')
@@ -312,25 +346,35 @@ async function createEnv(web3Home, web3Foreign) {
       web3: web3Home,
       mediator: homeMediator,
       amb: homeAMB,
-      token: homeToken,
-      getBridgedToken: makeGetBridgedToken(web3Home, homeMediator, homeOptions),
+      erc721Token: homeTokenERC721,
+      erc1155Token: homeTokenERC1155,
+      getBridgedTokenERC721: makeGetBridgedToken(web3Home, homeMediator, homeOptions, false),
+      getBridgedTokenERC1155: makeGetBridgedToken(web3Home, homeMediator, homeOptions, true),
       waitUntilProcessed: makeWaitUntilProcessed(homeAMB, 'AffirmationCompleted', homeBlockNumber),
       withDisabledExecution: makeWithDisabledExecution(homeMediator, owner),
-      checkTransfer: makeCheckTransfer(web3Home),
-      mint: makeMint(homeToken, users[0]),
-      relayToken: makeRelayToken(homeMediator, users[0]),
+      checkTransferERC721: makeCheckTransfer(web3Home, false),
+      checkTransferERC1155: makeCheckTransfer(web3Home, true),
+      mintERC721: makeMint(homeTokenERC721, users[0], false),
+      mintERC1155: makeMint(homeTokenERC1155, users[0], true),
+      relayTokenERC721: makeRelayToken(homeMediator, users[0], false),
+      relayTokenERC1155: makeRelayToken(homeMediator, users[0], true),
     },
     foreign: {
       web3: web3Foreign,
       mediator: foreignMediator,
       amb: foreignAMB,
-      token: foreignToken,
-      getBridgedToken: makeGetBridgedToken(web3Foreign, foreignMediator, foreignOptions),
+      erc721Token: foreignTokenERC721,
+      erc1155Token: foreignTokenERC1155,
+      getBridgedTokenERC721: makeGetBridgedToken(web3Foreign, foreignMediator, foreignOptions, false),
+      getBridgedTokenERC1155: makeGetBridgedToken(web3Foreign, foreignMediator, foreignOptions, true),
       waitUntilProcessed: makeWaitUntilProcessed(foreignAMB, 'RelayedMessage', foreignBlockNumber),
       withDisabledExecution: makeWithDisabledExecution(foreignMediator, owner),
-      checkTransfer: makeCheckTransfer(web3Foreign),
-      mint: makeMint(foreignToken, users[0]),
-      relayToken: makeRelayToken(foreignMediator, users[0]),
+      checkTransferERC721: makeCheckTransfer(web3Foreign, false),
+      checkTransferERC1155: makeCheckTransfer(web3Foreign, true),
+      mintERC721: makeMint(foreignTokenERC721, users[0], false),
+      mintERC1155: makeMint(foreignTokenERC1155, users[0], true),
+      relayTokenERC721: makeRelayToken(foreignMediator, users[0], false),
+      relayTokenERC1155: makeRelayToken(foreignMediator, users[0], true),
       executeManually: await makeExecuteManually(homeAMB, foreignAMB, web3Home, homeBlockNumber),
     },
     findMessageId,
