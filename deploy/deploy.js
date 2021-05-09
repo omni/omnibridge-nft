@@ -18,13 +18,24 @@ async function deployOmnibridgeNFT() {
   const initializeHome = require('./src/omnibridge_nft/initializeHome')
   const initializeForeign = require('./src/omnibridge_nft/initializeForeign')
   await preDeploy()
-  const { homeBridgeMediator, tokenImage: homeTokenImage, gasLimitManager, forwardingRulesManager } = await deployHome()
-  const { foreignBridgeMediator, tokenImage: foreignTokenImage } = await deployForeign()
+  const {
+    homeBridgeMediator,
+    tokenImageERC721: homeTokenImageERC721,
+    tokenImageERC1155: homeTokenImageERC1155,
+    gasLimitManager,
+    forwardingRulesManager,
+  } = await deployHome()
+  const {
+    foreignBridgeMediator,
+    tokenImageERC721: foreignTokenImageERC721,
+    tokenImageERC1155: foreignTokenImageERC1155,
+  } = await deployForeign()
 
   await initializeHome({
     homeBridge: homeBridgeMediator.address,
     foreignBridge: foreignBridgeMediator.address,
-    tokenImage: homeTokenImage.address,
+    tokenImageERC721: homeTokenImageERC721.address,
+    tokenImageERC1155: homeTokenImageERC1155.address,
     gasLimitManager: gasLimitManager.address,
     forwardingRulesManager: forwardingRulesManager.address,
   })
@@ -32,7 +43,8 @@ async function deployOmnibridgeNFT() {
   await initializeForeign({
     foreignBridge: foreignBridgeMediator.address,
     homeBridge: homeBridgeMediator.address,
-    tokenImage: foreignTokenImage.address,
+    tokenImageERC721: foreignTokenImageERC721.address,
+    tokenImageERC1155: foreignTokenImageERC1155.address,
   })
 
   console.log('\nDeployment has been completed.\n\n')

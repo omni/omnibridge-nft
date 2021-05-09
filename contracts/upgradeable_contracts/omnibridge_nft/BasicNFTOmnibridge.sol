@@ -1,17 +1,22 @@
 pragma solidity 0.7.5;
+// solhint-disable-next-line compiler-version
+pragma abicoder v2;
 
 import "../Initializable.sol";
 import "../Upgradeable.sol";
+import "../../interfaces/IBurnableMintableERC1155Token.sol";
 import "./components/common/BridgeOperationsStorage.sol";
 import "./components/common/FailedMessagesProcessor.sol";
 import "./components/common/NFTBridgeLimits.sol";
 import "./components/common/ERC721Relayer.sol";
+import "./components/common/ERC1155Relayer.sol";
 import "./components/common/NFTOmnibridgeInfo.sol";
 import "./components/native/NativeTokensRegistry.sol";
-import "./components/native/ERC721Reader.sol";
+import "./components/native/MetadataReader.sol";
 import "./components/bridged/BridgedTokensRegistry.sol";
 import "./components/bridged/TokenImageStorage.sol";
 import "./components/bridged/ERC721TokenProxy.sol";
+import "./components/bridged/ERC1155TokenProxy.sol";
 import "./components/native/NFTMediatorBalanceStorage.sol";
 import "../../tokens/ERC721BridgeToken.sol";
 
@@ -27,12 +32,15 @@ abstract contract BasicNFTOmnibridge is
     NativeTokensRegistry,
     NFTOmnibridgeInfo,
     NFTBridgeLimits,
-    ERC721Reader,
+    MetadataReader,
     TokenImageStorage,
     ERC721Relayer,
+    ERC1155Relayer,
     NFTMediatorBalanceStorage,
     FailedMessagesProcessor
 {
+    using SafeMath for uint256;
+
     // Workaround for storing variable up-to-32 bytes suffix
     uint256 private immutable SUFFIX_SIZE;
     bytes32 private immutable SUFFIX;
@@ -63,16 +71,18 @@ abstract contract BasicNFTOmnibridge is
      * @param _name name of the native token, name suffix will be appended, if empty, symbol will be used instead.
      * @param _symbol symbol of the bridged token, if empty, name will be used instead.
      * @param _recipient address that will receive the tokens.
-     * @param _tokenId unique id of the bridged token.
-     * @param _tokenURI URI for the bridged token instance.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
+     * @param _tokenURIs URIs for the bridged token instances.
      */
     function deployAndHandleBridgedNFT(
         address _token,
         string calldata _name,
         string calldata _symbol,
         address _recipient,
-        uint256 _tokenId,
-        string calldata _tokenURI
+        uint256[] calldata _tokenIds,
+        uint256[] calldata _values,
+        string[] calldata _tokenURIs
     ) external onlyMediator {
         address bridgedToken = bridgedTokenAddress(_token);
         if (bridgedToken == address(0)) {
@@ -84,12 +94,14 @@ abstract contract BasicNFTOmnibridge is
             } else if (bytes(symbol).length == 0) {
                 symbol = name;
             }
-            bridgedToken = address(new ERC721TokenProxy(tokenImage(), _transformName(name), symbol, address(this)));
+            bridgedToken = _values.length > 0
+                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _transformName(name), symbol, address(this)))
+                : address(new ERC721TokenProxy(tokenImageERC721(), _transformName(name), symbol, address(this)));
             _setTokenAddressPair(_token, bridgedToken);
         }
 
-        _handleTokens(bridgedToken, false, _recipient, _tokenId);
-        _setTokenURI(bridgedToken, _tokenId, _tokenURI);
+        _handleTokens(bridgedToken, false, _recipient, _tokenIds, _values);
+        _setTokensURI(bridgedToken, _tokenIds, _tokenURIs);
     }
 
     /**
@@ -97,19 +109,21 @@ abstract contract BasicNFTOmnibridge is
      * Checks that the bridged token is inside the execution limits and invokes the Mint accordingly.
      * @param _token address of the native ERC721 token on the other side.
      * @param _recipient address that will receive the tokens.
-     * @param _tokenId unique id of the bridged token.
-     * @param _tokenURI URI for the bridged token instance.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
+     * @param _tokenURIs URIs for the bridged token instances.
      */
     function handleBridgedNFT(
         address _token,
         address _recipient,
-        uint256 _tokenId,
-        string calldata _tokenURI
+        uint256[] calldata _tokenIds,
+        uint256[] calldata _values,
+        string[] calldata _tokenURIs
     ) external onlyMediator {
         address token = bridgedTokenAddress(_token);
 
-        _handleTokens(token, false, _recipient, _tokenId);
-        _setTokenURI(token, _tokenId, _tokenURI);
+        _handleTokens(token, false, _recipient, _tokenIds, _values);
+        _setTokensURI(token, _tokenIds, _tokenURIs);
     }
 
     /**
@@ -117,18 +131,20 @@ abstract contract BasicNFTOmnibridge is
      * Checks that the bridged token is inside the execution limits and invokes the Unlock accordingly.
      * @param _token address of the native ERC721 token contract.
      * @param _recipient address that will receive the tokens.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
     function handleNativeNFT(
         address _token,
         address _recipient,
-        uint256 _tokenId
+        uint256[] calldata _tokenIds,
+        uint256[] calldata _values
     ) external onlyMediator {
         require(isRegisteredAsNativeToken(_token));
 
         _setNativeTokenIsRegistered(_token, REGISTERED_AND_DEPLOYED);
 
-        _handleTokens(_token, true, _recipient, _tokenId);
+        _handleTokens(_token, true, _recipient, _tokenIds, _values);
     }
 
     /**
@@ -157,22 +173,46 @@ abstract contract BasicNFTOmnibridge is
      * in order to avoid an attempt to steal the funds from a token with double addresses.
      * @param _token address of the token contract.
      * @param _receiver the address that will receive the token on the other network.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
      */
-    function fixMediatorBalance(
+    function fixMediatorBalanceERC721(
         address _token,
         address _receiver,
-        uint256 _tokenId
+        uint256[] calldata _tokenIds
     ) external onlyIfUpgradeabilityOwner {
         require(isRegisteredAsNativeToken(_token));
-        require(!mediatorOwns(_token, _tokenId));
-        require(IERC721(_token).ownerOf(_tokenId) == address(this));
+        require(_tokenIds.length > 0);
 
-        _setMediatorOwns(_token, _tokenId, true);
+        uint256[] memory values = new uint256[](0);
 
-        bytes memory data = _prepareMessage(_token, _receiver, _tokenId);
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, values);
         bytes32 _messageId = _passMessage(data, true);
-        _recordBridgeOperation(_messageId, _token, _receiver, _tokenId);
+        _recordBridgeOperation(_messageId, _token, _receiver, _tokenIds, values);
+    }
+
+    /**
+     * @dev Allows to send to the other network some ERC1155 token that can be forced into the contract
+     * without the invocation of the required methods.
+     * Before calling this method, it must be carefully investigated how imbalance happened
+     * in order to avoid an attempt to steal the funds from a token with double addresses.
+     * @param _token address of the token contract.
+     * @param _receiver the address that will receive the token on the other network.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values corresponding amounts of the bridged tokens.
+     */
+    function fixMediatorBalanceERC1155(
+        address _token,
+        address _receiver,
+        uint256[] calldata _tokenIds,
+        uint256[] calldata _values
+    ) external onlyIfUpgradeabilityOwner {
+        require(isRegisteredAsNativeToken(_token));
+        require(_tokenIds.length == _values.length);
+        require(_tokenIds.length > 0);
+
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, _values);
+        bytes32 _messageId = _passMessage(data, true);
+        _recordBridgeOperation(_messageId, _token, _receiver, _tokenIds, _values);
     }
 
     /**
@@ -180,38 +220,39 @@ abstract contract BasicNFTOmnibridge is
      * @param _token address of the ERC721 token contract.
      * @param _from address of token sender.
      * @param _receiver address of token receiver on the other side.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
     function bridgeSpecificActionsOnTokenTransfer(
         address _token,
         address _from,
         address _receiver,
-        uint256 _tokenId
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
     ) internal override {
-        // verify that token was indeed transferred
-        require(IERC721(_token).ownerOf(_tokenId) == address(this));
-
         if (!isTokenRegistered(_token)) {
             _setNativeTokenIsRegistered(_token, REGISTERED);
         }
 
-        bytes memory data = _prepareMessage(_token, _receiver, _tokenId);
+        bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, _values);
 
         bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
 
-        _recordBridgeOperation(_messageId, _token, _from, _tokenId);
+        _recordBridgeOperation(_messageId, _token, _from, _tokenIds, _values);
     }
 
     /**
      * @dev Constructs the message to be sent to the other side. Burns/locks bridged token.
      * @param _token bridged token address.
      * @param _receiver address of the tokens receiver on the other side.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
     function _prepareMessage(
         address _token,
         address _receiver,
-        uint256 _tokenId
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
     ) internal returns (bytes memory) {
         require(_receiver != address(0) && _receiver != mediatorContractOnOtherSide());
 
@@ -219,14 +260,40 @@ abstract contract BasicNFTOmnibridge is
 
         // process token is native with respect to this side of the bridge
         if (nativeToken == address(0)) {
-            _setMediatorOwns(_token, _tokenId, true);
+            string[] memory tokenURIs = new string[](_tokenIds.length);
 
-            string memory tokenURI = _readTokenURI(_token, _tokenId);
+            if (_values.length > 0) {
+                for (uint256 i = 0; i < _tokenIds.length; i++) {
+                    uint256 oldBalance = mediatorOwns(_token, _tokenIds[i]);
+                    uint256 newBalance = oldBalance.add(_values[i]);
+                    require(IERC1155(_token).balanceOf(address(this), _tokenIds[i]) >= newBalance);
+                    _setMediatorOwns(_token, _tokenIds[i], newBalance);
+                    tokenURIs[i] = _readERC1155TokenURI(_token, _tokenIds[i]);
+                }
+            } else {
+                for (uint256 i = 0; i < _tokenIds.length; i++) {
+                    require(mediatorOwns(_token, _tokenIds[i]) == 0);
+                    require(IERC721(_token).ownerOf(_tokenIds[i]) == address(this));
+                    _setMediatorOwns(_token, _tokenIds[i], 1);
+                    tokenURIs[i] = _readERC721TokenURI(_token, _tokenIds[i]);
+                }
+            }
 
             // process token which bridged alternative was already ACKed to be deployed
             if (isBridgedTokenDeployAcknowledged(_token)) {
-                return abi.encodeWithSelector(this.handleBridgedNFT.selector, _token, _receiver, _tokenId, tokenURI);
+                require(_tokenIds.length <= MAX_BATCH_BRIDGE_LIMIT);
+                return
+                    abi.encodeWithSelector(
+                        this.handleBridgedNFT.selector,
+                        _token,
+                        _receiver,
+                        _tokenIds,
+                        _values,
+                        tokenURIs
+                    );
             }
+
+            require(_tokenIds.length <= MAX_BATCH_BRIDGE_AND_DEPLOY_LIMIT);
 
             string memory name = _readName(_token);
             string memory symbol = _readSymbol(_token);
@@ -240,28 +307,37 @@ abstract contract BasicNFTOmnibridge is
                     name,
                     symbol,
                     _receiver,
-                    _tokenId,
-                    tokenURI
+                    _tokenIds,
+                    _values,
+                    tokenURIs
                 );
         }
 
         // process already known token that is bridged from other chain
-        IBurnableMintableERC721Token(_token).burn(_tokenId);
-        return abi.encodeWithSelector(this.handleNativeNFT.selector, nativeToken, _receiver, _tokenId);
+        if (_values.length > 0) {
+            IBurnableMintableERC1155Token(_token).burn(_tokenIds, _values);
+        } else {
+            for (uint256 i = 0; i < _tokenIds.length; i++) {
+                IBurnableMintableERC721Token(_token).burn(_tokenIds[i]);
+            }
+        }
+        return abi.encodeWithSelector(this.handleNativeNFT.selector, nativeToken, _receiver, _tokenIds, _values);
     }
 
     /**
      * @dev Unlock/Mint back the bridged token that was bridged to the other network but failed.
      * @param _token address that bridged token contract.
      * @param _recipient address that will receive the tokens.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
     function executeActionOnFixedTokens(
         address _token,
         address _recipient,
-        uint256 _tokenId
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
     ) internal override {
-        _releaseToken(_token, nativeTokenAddress(_token) == address(0), _recipient, _tokenId);
+        _releaseTokens(_token, nativeTokenAddress(_token) == address(0), _recipient, _tokenIds, _values);
     }
 
     /**
@@ -270,34 +346,38 @@ abstract contract BasicNFTOmnibridge is
      * @param _token token contract address on this side of the bridge.
      * @param _isNative true, if given token is native to this chain and Unlock should be used.
      * @param _recipient address that will receive the tokens.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
     function _handleTokens(
         address _token,
         bool _isNative,
         address _recipient,
-        uint256 _tokenId
+        uint256[] calldata _tokenIds,
+        uint256[] calldata _values
     ) internal {
         require(isTokenExecutionAllowed(_token));
 
-        _releaseToken(_token, _isNative, _recipient, _tokenId);
+        _releaseTokens(_token, _isNative, _recipient, _tokenIds, _values);
 
-        emit TokensBridged(_token, _recipient, _tokenId, messageId());
+        emit TokensBridged(_token, _recipient, _tokenIds, _values, messageId());
     }
 
     /**
      * Internal function for setting token URI for the bridged token instance.
      * @param _token address of the token contract.
-     * @param _tokenId unique id of the bridged token.
-     * @param _tokenURI URI for bridged token metadata.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _tokenURIs URIs for the bridged token instances.
      */
-    function _setTokenURI(
+    function _setTokensURI(
         address _token,
-        uint256 _tokenId,
-        string calldata _tokenURI
+        uint256[] calldata _tokenIds,
+        string[] calldata _tokenURIs
     ) internal {
-        if (bytes(_tokenURI).length > 0) {
-            IBurnableMintableERC721Token(_token).setTokenURI(_tokenId, _tokenURI);
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            if (bytes(_tokenURIs[i]).length > 0) {
+                IBurnableMintableERC721Token(_token).setTokenURI(_tokenIds[i], _tokenURIs[i]);
+            }
         }
     }
 
@@ -306,19 +386,36 @@ abstract contract BasicNFTOmnibridge is
      * @param _token address of the token contract.
      * @param _isNative true, if the token contract is native w.r.t to the bridge.
      * @param _recipient address of the tokens receiver.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
-    function _releaseToken(
+    function _releaseTokens(
         address _token,
         bool _isNative,
         address _recipient,
-        uint256 _tokenId
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
     ) internal {
-        if (_isNative) {
-            _setMediatorOwns(_token, _tokenId, false);
-            IERC721(_token).transferFrom(address(this), _recipient, _tokenId);
+        if (_values.length > 0) {
+            if (_isNative) {
+                for (uint256 i = 0; i < _tokenIds.length; i++) {
+                    _setMediatorOwns(_token, _tokenIds[i], mediatorOwns(_token, _tokenIds[i]).sub(_values[i]));
+                }
+                IERC1155(_token).safeBatchTransferFrom(address(this), _recipient, _tokenIds, _values, new bytes(0));
+            } else {
+                IBurnableMintableERC1155Token(_token).mint(_recipient, _tokenIds, _values);
+            }
         } else {
-            IBurnableMintableERC721Token(_token).mint(_recipient, _tokenId);
+            if (_isNative) {
+                for (uint256 i = 0; i < _tokenIds.length; i++) {
+                    _setMediatorOwns(_token, _tokenIds[i], 0);
+                    IERC721(_token).transferFrom(address(this), _recipient, _tokenIds[i]);
+                }
+            } else {
+                for (uint256 i = 0; i < _tokenIds.length; i++) {
+                    IBurnableMintableERC721Token(_token).mint(_recipient, _tokenIds[i]);
+                }
+            }
         }
     }
 
@@ -328,21 +425,21 @@ abstract contract BasicNFTOmnibridge is
      * @param _messageId id of the sent message.
      * @param _token bridged token address.
      * @param _sender address of the tokens sender.
-     * @param _tokenId unique id of the bridged token.
+     * @param _tokenIds unique ids of the bridged tokens.
+     * @param _values amounts of bridged tokens. Should be empty list for ERC721.
      */
     function _recordBridgeOperation(
         bytes32 _messageId,
         address _token,
         address _sender,
-        uint256 _tokenId
+        uint256[] memory _tokenIds,
+        uint256[] memory _values
     ) internal {
         require(isTokenBridgingAllowed(_token));
 
-        setMessageToken(_messageId, _token);
-        setMessageRecipient(_messageId, _sender);
-        setMessageValue(_messageId, _tokenId);
+        setMessageChecksum(_messageId, _messageChecksum(_token, _sender, _tokenIds, _values));
 
-        emit TokensBridgingInitiated(_token, _sender, _tokenId, _messageId);
+        emit TokensBridgingInitiated(_token, _sender, _tokenIds, _values, _messageId);
     }
 
     /**
