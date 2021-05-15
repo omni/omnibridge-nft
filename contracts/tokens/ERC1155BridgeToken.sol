@@ -115,4 +115,19 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
         // If both are set, concatenate the baseURI and tokenURI (via abi.encodePacked).
         return string(abi.encodePacked(base, tokenURI));
     }
+
+    /**
+     * @dev Tells the current version of the ERC1155 token interfaces.
+     */
+    function getTokenInterfacesVersion()
+        external
+        pure
+        returns (
+            uint64 major,
+            uint64 minor,
+            uint64 patch
+        )
+    {
+        return (1, 0, 0);
+    }
 }

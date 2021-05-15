@@ -82,4 +82,19 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     function setTokenURI(uint256 _tokenId, string calldata _tokenURI) external override onlyOwner {
         _setTokenURI(_tokenId, _tokenURI);
     }
+
+    /**
+     * @dev Tells the current version of the ERC721 token interfaces.
+     */
+    function getTokenInterfacesVersion()
+        external
+        pure
+        returns (
+            uint64 major,
+            uint64 minor,
+            uint64 patch
+        )
+    {
+        return (1, 0, 0);
+    }
 }
