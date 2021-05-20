@@ -46,6 +46,27 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
     }
 
     /**
+     * @dev Tells if this contract implements the interface defined by
+     * `interfaceId`. See the corresponding EIP165.
+     * @return true, if interface is implemented.
+     */
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
+        bytes4 INTERFACE_ID_ERC165 = 0x01ffc9a7;
+        bytes4 INTERFACE_ID_ERC1155 = 0xd9b67a26;
+        bytes4 INTERFACE_ID_ERC1155_METADATA_URI = 0x0e89341c;
+        return
+            interfaceId == INTERFACE_ID_ERC165 ||
+            interfaceId == INTERFACE_ID_ERC1155 ||
+            interfaceId == INTERFACE_ID_ERC1155_METADATA_URI;
+    }
+
+    /**
+     * @dev Stub for preventing unneeded storage writes.
+     * All supported interfaces are hardcoded in the supportsInterface function.
+     */
+    function _registerInterface(bytes4) internal override {}
+
+    /**
      * @dev Mint a batch of new ERC1155 tokens.
      * Only bridge contract is authorized to mint tokens.
      * @param _to address of the newly created token owner.
@@ -128,6 +149,6 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
             uint64 patch
         )
     {
-        return (1, 0, 0);
+        return (1, 0, 1);
     }
 }
