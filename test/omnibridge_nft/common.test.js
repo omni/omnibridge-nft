@@ -3,7 +3,9 @@ const ForeignNFTOmnibridge = artifacts.require('ForeignNFTOmnibridge')
 const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
+const ERC721TokenProxy = artifacts.require('ERC721TokenProxy')
 const ERC1155BridgeToken = artifacts.require('ERC1155BridgeToken')
+const ERC1155TokenProxy = artifacts.require('ERC1155TokenProxy')
 const ERC1155ReceiverMock = artifacts.require('ERC1155ReceiverMock')
 const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
 const SelectorTokenGasLimitManager = artifacts.require('SelectorTokenGasLimitManager')
@@ -1076,8 +1078,13 @@ function runTests(accounts, isHome) {
             const { nativeToken, bridgedToken } = events[0].returnValues
             expect(nativeToken).to.be.equal(otherSideToken1)
             const deployedToken = await ERC721BridgeToken.at(bridgedToken)
+            const deployedTokenProxy = await ERC721TokenProxy.at(bridgedToken)
 
             expect(await deployedToken.name()).to.be.equal(modifyName('Test'))
+            const v1 = await deployedToken.getTokenInterfacesVersion()
+            const v2 = await deployedTokenProxy.getTokenProxyInterfacesVersion()
+            expect(v1.major).to.be.bignumber.gte(ZERO)
+            expect(v2.major).to.be.bignumber.gte(ZERO)
             expect(await deployedToken.symbol()).to.be.equal('TST')
             expect(await contract.nativeTokenAddress(bridgedToken)).to.be.equal(nativeToken)
             expect(await contract.bridgedTokenAddress(nativeToken)).to.be.equal(bridgedToken)
@@ -1650,9 +1657,14 @@ function runTests(accounts, isHome) {
             const { nativeToken, bridgedToken } = events[0].returnValues
             expect(nativeToken).to.be.equal(otherSideToken1)
             const deployedToken = await ERC1155BridgeToken.at(bridgedToken)
+            const deployedTokenProxy = await ERC1155TokenProxy.at(bridgedToken)
 
             expect(await deployedToken.name()).to.be.equal(modifyName('Test'))
             expect(await deployedToken.symbol()).to.be.equal('TST')
+            const v1 = await deployedToken.getTokenInterfacesVersion()
+            const v2 = await deployedTokenProxy.getTokenProxyInterfacesVersion()
+            expect(v1.major).to.be.bignumber.gte(ZERO)
+            expect(v2.major).to.be.bignumber.gte(ZERO)
             expect(await contract.nativeTokenAddress(bridgedToken)).to.be.equal(nativeToken)
             expect(await contract.bridgedTokenAddress(nativeToken)).to.be.equal(bridgedToken)
 

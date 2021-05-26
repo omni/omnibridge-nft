@@ -36,6 +36,29 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     }
 
     /**
+     * @dev Tells if this contract implements the interface defined by
+     * `interfaceId`. See the corresponding EIP165.
+     * @return true, if interface is implemented.
+     */
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165, IERC165) returns (bool) {
+        bytes4 INTERFACE_ID_ERC165 = 0x01ffc9a7;
+        bytes4 INTERFACE_ID_ERC721 = 0x80ac58cd;
+        bytes4 INTERFACE_ID_ERC721_METADATA = 0x5b5e139f;
+        bytes4 INTERFACE_ID_ERC721_ENUMERABLE = 0x780e9d63;
+        return
+            interfaceId == INTERFACE_ID_ERC165 ||
+            interfaceId == INTERFACE_ID_ERC721 ||
+            interfaceId == INTERFACE_ID_ERC721_METADATA ||
+            interfaceId == INTERFACE_ID_ERC721_ENUMERABLE;
+    }
+
+    /**
+     * @dev Stub for preventing unneeded storage writes.
+     * All supported interfaces are hardcoded in the supportsInterface function.
+     */
+    function _registerInterface(bytes4) internal override {}
+
+    /**
      * @dev Mint new ERC721 token.
      * Only bridge contract is authorized to mint tokens.
      * @param _to address of the newly created token owner.
@@ -81,5 +104,20 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
      */
     function setTokenURI(uint256 _tokenId, string calldata _tokenURI) external override onlyOwner {
         _setTokenURI(_tokenId, _tokenURI);
+    }
+
+    /**
+     * @dev Tells the current version of the ERC721 token interfaces.
+     */
+    function getTokenInterfacesVersion()
+        external
+        pure
+        returns (
+            uint64 major,
+            uint64 minor,
+            uint64 patch
+        )
+    {
+        return (1, 0, 1);
     }
 }
