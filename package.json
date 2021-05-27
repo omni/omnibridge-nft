@@ -7,7 +7,6 @@
     "test": "scripts/test.sh",
     "coverage": "SOLIDITY_COVERAGE=true scripts/test.sh",
     "compile": "truffle compile",
-    "flatten": "bash flatten.sh 2>/dev/null",
     "lint": "yarn run lint:js && yarn run lint:sol",
     "lint:js": "eslint .",
     "lint:js:fix": "eslint . --fix",
@@ -47,7 +46,6 @@
     "solhint-plugin-prettier": "0.0.5",
     "solidity-coverage": "^0.7.12",
     "truffle": "^5.1.55",
-    "truffle-flattener": "^1.4.2",
     "truffle-plugin-verify": "^0.5.8"
   },
   "engines": {
