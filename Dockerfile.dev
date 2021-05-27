@@ -9,9 +9,6 @@ COPY truffle-config.js truffle-config.js
 COPY ./contracts ./contracts
 RUN yarn compile
 
-COPY flatten.sh flatten.sh
-RUN yarn flatten
-
 COPY deploy.sh deploy.sh
 COPY ./deploy ./deploy
 COPY ./test ./test
