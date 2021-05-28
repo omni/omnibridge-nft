@@ -19,6 +19,8 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
 
     address public bridgeContract;
 
+    bool private hasAlreadyMinted;
+
     constructor(
         string memory _name,
         string memory _symbol,
@@ -78,7 +80,20 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
         uint256[] memory _tokenIds,
         uint256[] memory _values
     ) external override onlyBridge {
-        _mintBatch(_to, _tokenIds, _values, new bytes(0));
+        if (_tokenIds.length == 1 && _values.length == 1) {
+            _mint(_to, _tokenIds[0], _values[0], new bytes(0));
+        } else {
+            if (!hasAlreadyMinted) {
+                uint256 len = _tokenIds.length - 1;
+                _mint(_to, _tokenIds[len], _values[len], new bytes(0));
+                assembly {
+                    mstore(_tokenIds, len) // _tokenIds.pop()
+                    mstore(_values, len) // _values.pop()
+                }
+            }
+            _mintBatch(_to, _tokenIds, _values, new bytes(0));
+        }
+        hasAlreadyMinted = true;
     }
 
     /**
@@ -149,6 +164,6 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
             uint64 patch
         )
     {
-        return (1, 0, 1);
+        return (1, 1, 0);
     }
 }

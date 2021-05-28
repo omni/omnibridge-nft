@@ -179,30 +179,36 @@ async function makeExecuteManually(homeAMB, foreignAMB, web3, homeBlockNumber) {
   }
 }
 
-function makeCheckTransfer(web3, isERC1155 = false) {
+function makeCheckTransfer(web3, isERC1155 = false, isBatch = false) {
+  const erc1155EventName = isBatch ? 'TransferBatch' : 'TransferSingle'
   const eventABI = isERC1155
-    ? ERC1155.abi.find((e) => e.type === 'event' && e.name === 'TransferBatch')
+    ? ERC1155.abi.find((e) => e.type === 'event' && e.name === erc1155EventName)
     : ERC721.abi.find((e) => e.type === 'event' && e.name === 'Transfer' && e.inputs.length === 3)
   const sig = web3.eth.abi.encodeEventSignature(eventABI)
-  const eventToStr = isERC1155
+  const erc1155EventToStr = isBatch
     ? (e) => `- TransferBatch(${e.operator}, ${e.from}, ${e.to}, [${e.ids.join(', ')}], [${e.values.join(', ')}])`
-    : (e) => `- Transfer(${e.from}, ${e.to}, ${e.tokenId})`
+    : (e) => `- TransferSingle(${e.operator}, ${e.from}, ${e.to}, ${e.id}, ${e.value})`
+  const eventToStr = isERC1155 ? erc1155EventToStr : (e) => `- Transfer(${e.from}, ${e.to}, ${e.tokenId})`
 
   return async (txHash, token, from, to, tokenId) => {
     const tokenAddr = toAddress(token)
     const fromAddr = toAddress(from)
     const toAddr = toAddress(to)
-    const str = isERC1155
+    const erc1155Str = isBatch
       ? `TransferBatch(${fromAddr}, ${fromAddr}, ${toAddr}, [${tokenId}], [1])`
-      : `Transfer(${fromAddr}, ${toAddr}, ${tokenId})`
+      : `TransferSingle(${fromAddr}, ${fromAddr}, ${toAddr}, ${tokenId}, 1)`
+    const str = isERC1155 ? erc1155Str : `Transfer(${fromAddr}, ${toAddr}, ${tokenId})`
     console.log(`Checking if transaction has the required ${str}`)
     const { logs } = await web3.eth.getTransactionReceipt(txHash)
     const transfers = logs
       .filter((log) => log.topics[0] === sig && log.address === tokenAddr)
       .map((log) => web3.eth.abi.decodeLog(eventABI.inputs, log.data, log.topics.slice(1)))
     assert.ok(transfers.length > 0, `No transfers are found for the token ${tokenAddr}`)
-    const checkTransfer = isERC1155
+    const checkErc1155Transfer = isBatch
       ? (e) => e.from === fromAddr && e.to === toAddr && e.ids[0] === tokenId.toString() && e.values[0] === '1'
+      : (e) => e.from === fromAddr && e.to === toAddr && e.id === tokenId.toString() && e.value === '1'
+    const checkTransfer = isERC1155
+      ? checkErc1155Transfer
       : (e) => e.from === fromAddr && e.to === toAddr && e.tokenId === tokenId.toString()
     assert.ok(
       transfers.some(checkTransfer),
@@ -353,7 +359,8 @@ async function createEnv(web3Home, web3Foreign) {
       waitUntilProcessed: makeWaitUntilProcessed(homeAMB, 'AffirmationCompleted', homeBlockNumber),
       withDisabledExecution: makeWithDisabledExecution(homeMediator, owner),
       checkTransferERC721: makeCheckTransfer(web3Home, false),
-      checkTransferERC1155: makeCheckTransfer(web3Home, true),
+      checkTransferERC1155: makeCheckTransfer(web3Home, true, false),
+      checkTransferBatchERC1155: makeCheckTransfer(web3Home, true, true),
       mintERC721: makeMint(homeTokenERC721, users[0], false),
       mintERC1155: makeMint(homeTokenERC1155, users[0], true),
       relayTokenERC721: makeRelayToken(homeMediator, users[0], false),
@@ -370,7 +377,8 @@ async function createEnv(web3Home, web3Foreign) {
       waitUntilProcessed: makeWaitUntilProcessed(foreignAMB, 'RelayedMessage', foreignBlockNumber),
       withDisabledExecution: makeWithDisabledExecution(foreignMediator, owner),
       checkTransferERC721: makeCheckTransfer(web3Foreign, false),
-      checkTransferERC1155: makeCheckTransfer(web3Foreign, true),
+      checkTransferERC1155: makeCheckTransfer(web3Foreign, true, false),
+      checkTransferBatchERC1155: makeCheckTransfer(web3Foreign, true, true),
       mintERC721: makeMint(foreignTokenERC721, users[0], false),
       mintERC1155: makeMint(foreignTokenERC1155, users[0], true),
       relayTokenERC721: makeRelayToken(foreignMediator, users[0], false),
