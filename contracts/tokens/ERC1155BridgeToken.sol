@@ -84,6 +84,7 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
             _mint(_to, _tokenIds[0], _values[0], new bytes(0));
         } else {
             if (!hasAlreadyMinted) {
+                require(_tokenIds.length > 1 && _tokenIds.length == _values.length);
                 uint256 len = _tokenIds.length - 1;
                 _mint(_to, _tokenIds[len], _values[len], new bytes(0));
                 assembly {
