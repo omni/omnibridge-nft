@@ -83,6 +83,11 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
         if (_tokenIds.length == 1 && _values.length == 1) {
             _mint(_to, _tokenIds[0], _values[0], new bytes(0));
         } else {
+            // Next few lines ensure that the first mint ever happened in his token contract will performed using TransferSingle event
+            // Otherwise, NFT marketplaces have issues with indexing bridged token data.
+            // On first mint ever (when hasAlreadyMinted is false), last token id from the list is minted using TransferSingle.
+            // All over tokens from the list are minted using TransferBatch event.
+            // All subsequent operations will always use TransferBatch for operations involving more than 1 token id.
             if (!hasAlreadyMinted) {
                 require(_tokenIds.length > 1 && _tokenIds.length == _values.length);
                 uint256 len = _tokenIds.length - 1;
