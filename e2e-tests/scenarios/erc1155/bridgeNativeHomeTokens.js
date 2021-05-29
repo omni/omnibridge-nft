@@ -17,7 +17,7 @@ async function run({ foreign, home, users }) {
   const receipt2 = await foreign.relayTokenERC1155(bridgedToken, id)
   const relayTxHash2 = await home.waitUntilProcessed(receipt2)
 
-  await home.checkTransferERC1155(relayTxHash2, erc1155Token, mediator, users[0], id)
+  await home.checkTransferBatchERC1155(relayTxHash2, erc1155Token, mediator, users[0], id)
 }
 
 module.exports = {

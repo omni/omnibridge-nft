@@ -1729,6 +1729,22 @@ function runTests(accounts, isHome) {
             expect(event[1].returnValues.values).to.be.eql(['1', '3'])
             expect(event[1].returnValues.messageId).to.be.equal(exampleMessageId)
           })
+
+          it('should mint single token', async () => {
+            const data = handleBridgedERC1155({ tokenIds: [3], values: [5] })
+            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
+
+            expect(await deployedToken.balanceOf(user, 3)).to.be.bignumber.equal('5')
+            expect(await contract.mediatorOwns(deployedToken.address, 3)).to.be.bignumber.equal('0')
+
+            const event = await getEvents(contract, { event: 'TokensBridged' })
+            expect(event.length).to.be.equal(2)
+            expect(event[1].returnValues.token).to.be.equal(deployedToken.address)
+            expect(event[1].returnValues.recipient).to.be.equal(user)
+            expect(event[1].returnValues.tokenIds).to.be.eql(['3'])
+            expect(event[1].returnValues.values).to.be.eql(['5'])
+            expect(event[1].returnValues.messageId).to.be.equal(exampleMessageId)
+          })
         })
       })
     })
