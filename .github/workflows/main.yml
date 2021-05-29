@@ -58,7 +58,7 @@ jobs:
       - name: Prepare tag names
         id: prep
         run: |
-          DOCKER_IMAGE=poanetwork/nft-omnibridge-contracts
+          DOCKER_IMAGE=omni/nft-contracts
           if [[ $GITHUB_REF == refs/tags/* ]]; then
             echo ::set-output name=tags::${DOCKER_IMAGE}:${GITHUB_REF#refs/tags/},${DOCKER_IMAGE}:latest
           else
