@@ -7,7 +7,6 @@
     "test": "scripts/test.sh",
     "coverage": "SOLIDITY_COVERAGE=true scripts/test.sh",
     "compile": "truffle compile",
-    "flatten": "bash flatten.sh 2>/dev/null",
     "lint": "yarn run lint:js && yarn run lint:sol",
     "lint:js": "eslint .",
     "lint:js:fix": "eslint . --fix",
@@ -22,8 +21,10 @@
     "bignumber.js": "^9.0.1",
     "dotenv": "^8.2.0",
     "envalid": "^6.0.2",
+    "ipfs-http-client": "^50.1.0",
     "promise-retry": "^2.0.1",
     "querystring": "^0.2.0",
+    "shelljs": "^0.8.4",
     "web3": "^1.3.0"
   },
   "devDependencies": {
@@ -45,7 +46,7 @@
     "solhint-plugin-prettier": "0.0.5",
     "solidity-coverage": "^0.7.12",
     "truffle": "^5.1.55",
-    "truffle-flattener": "^1.4.2"
+    "truffle-plugin-verify": "^0.5.8"
   },
   "engines": {
     "node": ">= 14"

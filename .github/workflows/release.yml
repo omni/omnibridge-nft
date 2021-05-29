@@ -5,7 +5,7 @@ on:
     types: [created]
 
 jobs:
-  flats:
+  source:
     runs-on: ubuntu-latest
     steps:
       - id: get_release
@@ -23,13 +23,22 @@ jobs:
           key: ${{ runner.os }}-node_modules-${{ hashFiles('**/yarn.lock') }}
       - run: yarn
         if: ${{ !steps.yarn-cache.outputs.cache-hit }}
-      - run: yarn flatten
-      - run: zip flats $(find flats -name '*.sol')
+      - run: yarn compile
+      - run: zip contracts $(find contracts -name '*.sol')
+      - run: zip artifacts $(find build -name '*.json')
       - uses: actions/upload-release-asset@v1.0.2
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: flats.zip
-          asset_name: omnibridge-nft-contracts-flattened-${{ steps.get_release.outputs.tag_name }}.zip
+          asset_path: contracts.zip
+          asset_name: omnibridge-nft-contracts-${{ steps.get_release.outputs.tag_name }}.zip
+          asset_content_type: application/zip
+      - uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: artifacts.zip
+          asset_name: omnibridge-nft-artifacts-${{ steps.get_release.outputs.tag_name }}.zip
           asset_content_type: application/zip

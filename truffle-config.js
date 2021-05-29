@@ -1,6 +1,10 @@
 module.exports = {
   contracts_build_directory: './build/contracts',
   networks: {
+    for_etherscan_verification: {
+      network_id: process.env.VERIFICATION_CHAIN_ID,
+      host: process.env.VERIFICATION_RPC_URL,
+    },
     ganache: {
       host: '127.0.0.1',
       port: 8545,
@@ -22,5 +26,8 @@ module.exports = {
       },
     },
   },
-  plugins: ['solidity-coverage'],
+  plugins: ['solidity-coverage', 'truffle-plugin-verify'],
+  api_keys: {
+    etherscan: process.env.VERIFICATION_ETHERSCAN_API_KEY,
+  },
 }

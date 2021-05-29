@@ -9,26 +9,15 @@ const {
   GAS_LIMIT_EXTRA,
   HOME_DEPLOYMENT_GAS_PRICE,
   FOREIGN_DEPLOYMENT_GAS_PRICE,
-  HOME_EXPLORER_URL,
-  FOREIGN_EXPLORER_URL,
-  HOME_EXPLORER_API_KEY,
-  FOREIGN_EXPLORER_API_KEY,
   DEPLOYMENT_ACCOUNT_PRIVATE_KEY,
 } = require('./web3')
-const verifier = require('./utils/verifier')
 
 async function deployContract(contractJson, args, { network, nonce }) {
   let web3
-  let apiUrl
-  let apiKey
   if (network === 'foreign') {
     web3 = web3Foreign
-    apiUrl = FOREIGN_EXPLORER_URL
-    apiKey = FOREIGN_EXPLORER_API_KEY
   } else {
     web3 = web3Home
-    apiUrl = HOME_EXPLORER_URL
-    apiKey = HOME_EXPLORER_API_KEY
   }
   const instance = new web3.eth.Contract(contractJson.abi)
   const result = instance
@@ -44,14 +33,6 @@ async function deployContract(contractJson, args, { network, nonce }) {
   })
   instance.options.address = receipt.contractAddress
   instance.deployedBlockNumber = receipt.blockNumber
-
-  if (apiUrl) {
-    let constructorArguments
-    if (args.length) {
-      constructorArguments = result.substring(contractJson.bytecode.length)
-    }
-    await verifier({ artifact: contractJson, constructorArguments, address: receipt.contractAddress, apiUrl, apiKey })
-  }
 
   return instance
 }
