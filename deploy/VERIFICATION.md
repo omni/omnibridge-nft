@@ -19,7 +19,7 @@ The scripts below relay on the following environment variables (can be defined t
 It is possible to run the verification process if the docker image was used for deployment. It can be done by running a shell session within the container. For example,
 ```
 docker run -ti --rm -e FOREIGN_RPC_URL=... -e FOREIGN_EXPLORER_API_KEY=... \
-    omnibridge/nft-contracts:2.0.0-rc4 bash
+    omnibridge/nft-contracts:latest bash
 ```
 
 ## Verification in Etherscan/Bscscan

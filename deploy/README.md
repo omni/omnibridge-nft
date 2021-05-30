@@ -23,7 +23,7 @@ It is assumed that Docker is installed on the system.
 
 4. Run the docker container:
    ```
-   docker run -ti --rm --env-file nft-ob.env omnibridge/nft-contracts:2.0.0-rc4 deploy.sh
+   docker run -ti --rm --env-file nft-ob.env omnibridge/nft-contracts:latest deploy.sh
    ```
 
 ## Deployment with Yarn
