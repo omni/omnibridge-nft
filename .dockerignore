@@ -12,3 +12,4 @@ flats
 contracts.sublime-project
 contracts.sublime-workspace
 build/
+package-lock.json
