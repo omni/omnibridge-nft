@@ -1,33 +1,63 @@
-# How to Deploy POA Bridge Contracts
+How to deploy NFT OmniBridge AMB extension contracts
+====
 
-In order to deploy bridge contracts you must run `yarn` to install all dependencies. For more information, see the [project README](../README.md).
+There are two options to deploy NFT OB contracts: 
+  * with docker image, it could be useful for systems where there is no Node.JS environment configured
+  * with `yarn`, for the cases where customization in the contracts code is required
+
+If necessary, deploy and configure a multi-sig wallet contract to manage the bridge contracts after deployment. We have not audited any wallets for security, but have used [Gnosis Safe](https://gnosis-safe.io/) with success.
+
+## Deployment with Docker
+
+It is assumed that Docker is installed on the system.
+
+1. Pull the docker image:
+
+   ```
+   docker pull omnibridge/nft-contracts:latest
+   ```
+
+2. Create a `nft-ob.env` file with the NFT OB configuration parameters. See below for comments related to each parameter.
+
+3. Add funds to the deployment account in both the Home and Foreign networks.
+
+4. Run the docker container:
+   ```
+   docker run -ti --rm --env-file nft-ob.env omnibridge/nft-contracts:2.0.0-rc4 deploy.sh
+   ```
+
+## Deployment with Yarn
+
+Before deploying of the NFT OB contracts you must run `yarn` to install all dependencies.
 
 1. Compile the source contracts.
-```
-cd ..
-yarn compile
-```
+   ```
+   cd ..
+   yarn compile
+   ```
 
 2. Create a `.env` file.
-```
-cd deploy
-cp env.example .env
-```
+   ```
+   cd deploy
+   cp env.example .env
+   ```
 
-3. If necessary, deploy and configure a multi-sig wallet contract to manage the bridge contracts after deployment. We have not audited any wallets for security, but have used https://github.com/gnosis/MultiSigWallet/ with success.
+3. Adjust the parameters in the `.env` file. See below for comments related to each parameter.
 
-4. Adjust the parameters in the `.env` file depending on the desired bridge mode. See below for comments related to each parameter.
+4. Add funds to the deployment account in both the Home and Foreign networks.
 
-5. Add funds to the deployment accounts in both the Home and Foreign networks.
+5. Run `yarn deploy`.
 
-6. Run `yarn deploy`.
+## Contracts verification
 
-## `OMNIBRIDGE_NFT` Bridge Mode Configuration Example.
+The contracts are not automatically verified during deployment. In order to publish the contracts' code in Etherscan/Blockscout, follow [these instructions](VERIFICATION.md)
 
-This example of an `.env` file for the `OMNIBRIDGE_NFT` bridge mode includes comments describing each parameter.
+## NFT OB configuration parameters clarification
+
+This example of an `.env` file for the NFT OmniBridge includes comments describing each parameter.
 
 ```bash
-# The type of bridge. Defines set of contracts to be deployed.
+# Don't change this parameter
 BRIDGE_MODE=OMNIBRIDGE_NFT
 
 # The private key hex value of the account responsible for contracts
@@ -102,13 +132,4 @@ HOME_TOKEN_NAME_SUFFIX=""
 # suffix used for token names for tokens bridged from Home to Foreign
 # usually you might want it to start with a space character
 FOREIGN_TOKEN_NAME_SUFFIX=""
-
-# The api url of an explorer to verify all the deployed contracts in Home network. Supported explorers: Blockscout, etherscan
-#HOME_EXPLORER_URL=https://blockscout.com/poa/core/api
-# The api key of the explorer api, if required, used to verify all the deployed contracts in Home network.
-#HOME_EXPLORER_API_KEY=
-# The api url of an explorer to verify all the deployed contracts in Foreign network. Supported explorers: Blockscout, etherscan
-#FOREIGN_EXPLORER_URL=https://api.etherscan.io/api
-# The api key of the explorer api, if required, used to verify all the deployed contracts in Foreign network.
-#FOREIGN_EXPLORER_API_KEY=
 ```

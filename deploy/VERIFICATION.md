@@ -1,9 +1,26 @@
-## Process
+NFT OB contracts verification
+====
+
+The instructions below are to guide through the NFT OmniBridge contracts verification process to have the contracts sources published in Etherscan/Blockscout.
+
+## Intro
 
 Due to usage of `pragma abicoder v2;` in the contracts source code,
 it is not possible to verify contracts through flattened source files.
 
 Instead, two different approaches can be used for Etherscan and Blockscout explorers.
+
+The scripts below relay on the following environment variables (can be defined through the `.env` file):
+  * `FOREIGN_RPC_URL` or `HOME_RPC_URL` used to get the chain id and the contract's constructor parameters
+  * `FOREIGN_EXPLORER_API_KEY` or `HOME_EXPLORER_API_KEY` provides an api key of the explorer api (Etherscan or Bscscan)
+
+### A note for running in the docker container
+
+It is possible to run the verification process if the docker image was used for deployment. It can be done by running a shell session within the container. For example,
+```
+docker run -ti --rm -e FOREIGN_RPC_URL=... -e FOREIGN_EXPLORER_API_KEY=... \
+    omnibridge/nft-contracts:2.0.0-rc4 bash
+```
 
 ## Verification in Etherscan/Bscscan
 
@@ -46,9 +63,9 @@ VERIFY_HOME=true deploy/verifyEtherscan.sh HomeNFTOmnibridge@0xFF9c66898B706cd56
 In order to verify multi-file contract in Blockscout, it must support Sourcify integration (present in the xDAI instance).
 
 The list of actions is the following:
-1) Upload contracts sources and metadata to IPFS.
-2) Wait until Sourcify monitor will handle uploaded files and will automatically verify deployed contracts.
-3) Import sources to blockscout from Sourcify database.
+1. Upload contracts sources and metadata to IPFS.
+2. Wait until Sourcify monitor will handle uploaded files and will automatically verify deployed contracts.
+3. Import sources to blockscout from Sourcify database.
 
 ### Upload to IPFS
 
