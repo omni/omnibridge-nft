@@ -4,7 +4,9 @@ set -e
 
 cd $(dirname $0)
 
-source .env
+if [ -f .env ]; then
+  source .env
+fi
 
 if [ "$VERIFY_HOME" = "true" ]; then
   VERIFICATION_RPC_URL="$HOME_RPC_URL"
