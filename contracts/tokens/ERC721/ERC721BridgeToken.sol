@@ -1,8 +1,8 @@
 pragma solidity 0.7.5;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "../interfaces/IOwnable.sol";
-import "../interfaces/IBurnableMintableERC721Token.sol";
+import "./ERC721.sol";
+import "../../interfaces/IOwnable.sol";
+import "../../interfaces/IBurnableMintableERC721Token.sol";
 
 /**
  * @title ERC721BridgeToken
@@ -10,14 +10,6 @@ import "../interfaces/IBurnableMintableERC721Token.sol";
  */
 contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     address public bridgeContract;
-
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        address _bridgeContract
-    ) ERC721(_name, _symbol) {
-        bridgeContract = _bridgeContract;
-    }
 
     /**
      * @dev Throws if sender is not a bridge contract.
@@ -51,12 +43,6 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
             interfaceId == INTERFACE_ID_ERC721_METADATA ||
             interfaceId == INTERFACE_ID_ERC721_ENUMERABLE;
     }
-
-    /**
-     * @dev Stub for preventing unneeded storage writes.
-     * All supported interfaces are hardcoded in the supportsInterface function.
-     */
-    function _registerInterface(bytes4) internal override {}
 
     /**
      * @dev Mint new ERC721 token.
@@ -118,6 +104,6 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
             uint64 patch
         )
     {
-        return (1, 0, 1);
+        return (1, 1, 0);
     }
 }
