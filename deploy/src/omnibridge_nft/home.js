@@ -53,7 +53,7 @@ async function deployHome() {
   let tokenImageERC721 = HOME_ERC721_TOKEN_IMAGE
   if (!tokenImageERC721) {
     console.log('\n[Home] Deploying new ERC721 token image')
-    const image = await deployContract(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
+    const image = await deployContract(ERC721BridgeToken, [], {
       nonce: nonce++,
     })
     tokenImageERC721 = image.options.address
@@ -65,7 +65,7 @@ async function deployHome() {
   let tokenImageERC1155 = HOME_ERC1155_TOKEN_IMAGE
   if (!tokenImageERC1155) {
     console.log('\n[Home] Deploying new ERC1155 token image')
-    const image = await deployContract(ERC1155BridgeToken, ['', '', ZERO_ADDRESS], {
+    const image = await deployContract(ERC1155BridgeToken, [], {
       nonce: nonce++,
     })
     tokenImageERC1155 = image.options.address

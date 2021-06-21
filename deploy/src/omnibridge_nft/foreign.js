@@ -2,7 +2,6 @@ const { web3Foreign, deploymentAddress } = require('../web3')
 const { deployContract, upgradeProxy } = require('../deploymentUtils')
 const { EternalStorageProxy, ForeignNFTOmnibridge, ERC721BridgeToken, ERC1155BridgeToken } = require('../loadContracts')
 const { FOREIGN_ERC721_TOKEN_IMAGE, FOREIGN_ERC1155_TOKEN_IMAGE, FOREIGN_TOKEN_NAME_SUFFIX } = require('../loadEnv')
-const { ZERO_ADDRESS } = require('../constants')
 
 async function deployForeign() {
   let nonce = await web3Foreign.eth.getTransactionCount(deploymentAddress)
@@ -17,7 +16,7 @@ async function deployForeign() {
   let tokenImageERC721 = FOREIGN_ERC721_TOKEN_IMAGE
   if (!tokenImageERC721) {
     console.log('\n[Foreign] Deploying new ERC721 token image')
-    const image = await deployContract(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
+    const image = await deployContract(ERC721BridgeToken, [], {
       network: 'foreign',
       nonce: nonce++,
     })
@@ -30,7 +29,7 @@ async function deployForeign() {
   let tokenImageERC1155 = FOREIGN_ERC1155_TOKEN_IMAGE
   if (!tokenImageERC1155) {
     console.log('\n[Foreign] Deploying new ERC1155 token image')
-    const image = await deployContract(ERC1155BridgeToken, ['', '', ZERO_ADDRESS], {
+    const image = await deployContract(ERC1155BridgeToken, [], {
       network: 'foreign',
       nonce: nonce++,
     })
