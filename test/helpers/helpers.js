@@ -1,4 +1,6 @@
 const { expect } = require('chai')
+const { TypedDataUtils } = require('eth-sig-util')
+const { GsnTestEnvironment } = require('@opengsn/dev/dist/src')
 const { BN } = require('../setup')
 
 // returns a Promise that resolves with a hex string that is the signature of
@@ -202,3 +204,21 @@ async function delay(ms) {
 }
 
 module.exports.delay = delay
+
+function eip712hash(data) {
+  return `0x${TypedDataUtils.sign(data, true).toString('hex')}`
+}
+
+module.exports.eip712hash = eip712hash
+
+async function startGSN() {
+  return GsnTestEnvironment.startGsn('localhost')
+}
+
+module.exports.startGSN = startGSN
+
+async function stopGSN() {
+  return GsnTestEnvironment.stopGsn()
+}
+
+module.exports.stopGSN = stopGSN

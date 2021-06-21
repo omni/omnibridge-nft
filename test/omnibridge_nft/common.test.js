@@ -2,9 +2,9 @@ const HomeNFTOmnibridge = artifacts.require('HomeNFTOmnibridge')
 const ForeignNFTOmnibridge = artifacts.require('ForeignNFTOmnibridge')
 const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
-const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
+const ERC721BridgeToken = artifacts.require('ERC721BridgeTokenMetaTx')
 const ERC721TokenProxy = artifacts.require('ERC721TokenProxy')
-const ERC1155BridgeToken = artifacts.require('ERC1155BridgeToken')
+const ERC1155BridgeToken = artifacts.require('ERC1155BridgeTokenMetaTx')
 const ERC1155TokenProxy = artifacts.require('ERC1155TokenProxy')
 const ERC1155ReceiverMock = artifacts.require('ERC1155ReceiverMock')
 const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
@@ -211,14 +211,15 @@ function runTests(accounts, isHome) {
   ]
 
   before(async () => {
-    tokenImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
-    tokenImageERC1155 = await ERC1155BridgeToken.new('TEST', 'TST', owner)
+    tokenImageERC721 = await ERC721BridgeToken.new()
+    tokenImageERC1155 = await ERC1155BridgeToken.new()
   })
 
   beforeEach(async () => {
     contract = await Mediator.new(SUFFIX)
     ambBridgeContract = await AMBMock.new()
-    token = await ERC721BridgeToken.new('TEST', 'TST', owner)
+    const tokenProxy = await ERC721TokenProxy.new(tokenImageERC721.address, 'TEST', 'TST', owner)
+    token = await ERC721BridgeToken.at(tokenProxy.address)
   })
 
   describe('getBridgeMode', () => {
@@ -818,7 +819,8 @@ function runTests(accounts, isHome) {
           })
 
           it('should not allow to use unregistered tokens', async () => {
-            const otherToken = await ERC721BridgeToken.new('Test', 'TST', owner)
+            const tokenProxy = await ERC721TokenProxy.new(tokenImageERC721.address, 'TEST', 'TST', owner)
+            const otherToken = await ERC721BridgeToken.at(tokenProxy.address)
             await otherToken.mint(user, 1).should.be.fulfilled
             await otherToken.transferFrom(user, contract.address, 1, { from: user }).should.be.fulfilled
 
@@ -1278,7 +1280,8 @@ function runTests(accounts, isHome) {
 
     describe('ERC1155', () => {
       beforeEach(async () => {
-        token = await ERC1155BridgeToken.new('TEST', 'TST', owner)
+        const tokenProxy = await ERC1155TokenProxy.new(tokenImageERC1155.address, 'TEST', 'TST', owner)
+        token = await ERC1155BridgeToken.at(tokenProxy.address)
         await token.setApprovalForAll(owner, true, { from: user })
       })
 
