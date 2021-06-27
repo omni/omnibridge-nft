@@ -86,8 +86,10 @@ abstract contract BasicNFTOmnibridge is
     ) external onlyMediator {
         address bridgedToken = bridgedTokenAddress(_token);
         if (bridgedToken == address(0)) {
-            if (bytes(_name).length == 0) {
-                require(bytes(_symbol).length > 0);
+            if (bytes(_name).length == 0 && bytes(_symbol).length == 0) {
+                _name = "Bridged NFT";
+                _symbol = "NFT";
+            } else if (bytes(_name).length == 0) {
                 _name = _symbol;
             } else if (bytes(_symbol).length == 0) {
                 _symbol = _name;
@@ -295,8 +297,6 @@ abstract contract BasicNFTOmnibridge is
 
             string memory name = _readName(_token);
             string memory symbol = _readSymbol(_token);
-
-            require(bytes(name).length > 0 || bytes(symbol).length > 0);
 
             return
                 abi.encodeWithSelector(

@@ -1135,6 +1135,22 @@ function runTests(accounts, isHome) {
             expect(await deployedToken.symbol()).to.be.equal('Test')
           })
 
+          it('should use default name, which can be reset later', async () => {
+            const data = deployAndHandleBridgedERC721({ tokenId: 1, name: '', symbol: '' })
+
+            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
+
+            const deployedToken = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
+            expect(await deployedToken.name()).to.be.equal(modifyName('Bridged NFT'))
+            expect(await deployedToken.symbol()).to.be.equal('NFT')
+
+            await deployedToken.setMetadata('newName', 'newSymbol', { from: user }).should.be.rejected
+            await deployedToken.setMetadata('newName', 'newSymbol', { from: owner }).should.be.fulfilled
+
+            expect(await deployedToken.name()).to.be.equal('newName')
+            expect(await deployedToken.symbol()).to.be.equal('newSymbol')
+          })
+
           it('should not allow to operate when execution is disabled globally', async () => {
             const data = deployAndHandleBridgedERC721({ tokenId: 1 })
 
@@ -1691,6 +1707,22 @@ function runTests(accounts, isHome) {
             expect(events.length).to.be.equal(1)
             const event = await getEvents(contract, { event: 'TokensBridged' })
             expect(event.length).to.be.equal(2)
+          })
+
+          it('should use default name, which can be reset later', async () => {
+            const data = deployAndHandleBridgedERC1155({ tokenIds: [1, 2], values: [1, 3], name: '', symbol: '' })
+
+            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
+
+            const deployedToken = await ERC1155BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
+            expect(await deployedToken.name()).to.be.equal(modifyName('Bridged NFT'))
+            expect(await deployedToken.symbol()).to.be.equal('NFT')
+
+            await deployedToken.setMetadata('newName', 'newSymbol', { from: user }).should.be.rejected
+            await deployedToken.setMetadata('newName', 'newSymbol', { from: owner }).should.be.fulfilled
+
+            expect(await deployedToken.name()).to.be.equal('newName')
+            expect(await deployedToken.symbol()).to.be.equal('newSymbol')
           })
         })
 
