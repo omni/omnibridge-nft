@@ -7,6 +7,7 @@ const ERC721TokenProxy = artifacts.require('ERC721TokenProxy')
 const ERC1155BridgeToken = artifacts.require('ERC1155BridgeToken')
 const ERC1155TokenProxy = artifacts.require('ERC1155TokenProxy')
 const ERC1155ReceiverMock = artifacts.require('ERC1155ReceiverMock')
+const NFTWithoutMetadata = artifacts.require('NFTWithoutMetadata')
 const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
 const SelectorTokenGasLimitManager = artifacts.require('SelectorTokenGasLimitManager')
 const OwnedUpgradeabilityProxy = artifacts.require('OwnedUpgradeabilityProxy')
@@ -607,6 +608,23 @@ function runTests(accounts, isHome) {
               }
             })
           }
+
+          it('should relay tokens with missing metadata', async () => {
+            const token = await NFTWithoutMetadata.new()
+
+            const transfer = token.methods['safeTransferFrom(address,address,uint256,bytes)']
+            await transfer(owner, contract.address, 1, '0x').should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(1)
+
+            const { data } = events[0].returnValues
+            expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+            const args = web3.eth.abi.decodeParameters(['address', 'string', 'string'], data.slice(10))
+            expect(args[0]).to.be.equal(token.address)
+            expect(args[1]).to.be.equal('')
+            expect(args[2]).to.be.equal('')
+          })
 
           it('should respect global bridging restrictions', async () => {
             await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
@@ -1375,6 +1393,23 @@ function runTests(accounts, isHome) {
             expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
             expect(await token.balanceOf(contract.address, tokenId1)).to.be.bignumber.equal('11')
             expect(await token.balanceOf(contract.address, tokenId2)).to.be.bignumber.equal('12')
+          })
+
+          it('should relay tokens with missing metadata', async () => {
+            const token = await NFTWithoutMetadata.new()
+
+            const transfer = token.methods['safeTransferFrom(address,address,uint256,uint256,bytes)']
+            await transfer(owner, contract.address, 1, 10, '0x').should.be.fulfilled
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(1)
+
+            const { data } = events[0].returnValues
+            expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+            const args = web3.eth.abi.decodeParameters(['address', 'string', 'string'], data.slice(10))
+            expect(args[0]).to.be.equal(token.address)
+            expect(args[1]).to.be.equal('')
+            expect(args[2]).to.be.equal('')
           })
 
           describe('fixFailedMessage', () => {
