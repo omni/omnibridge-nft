@@ -25,6 +25,8 @@ contract ERC721TokenProxy is Proxy {
     string private _baseURI;
     address private bridgeContract;
 
+    mapping(address => uint256) private nonces;
+
     /**
      * @dev Creates an upgradeable token proxy for ERC721BridgeToken.sol, initializes its eternalStorage.
      * @param _tokenImage address of the token image used for mirroring all functions.
@@ -86,6 +88,6 @@ contract ERC721TokenProxy is Proxy {
             uint64 patch
         )
     {
-        return (1, 0, 0);
+        return (1, 0, 1);
     }
 }

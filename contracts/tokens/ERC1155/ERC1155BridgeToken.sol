@@ -1,8 +1,8 @@
 pragma solidity 0.7.5;
 
-import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import "../interfaces/IOwnable.sol";
-import "../interfaces/IBurnableMintableERC1155Token.sol";
+import "./ERC1155.sol";
+import "../../interfaces/IOwnable.sol";
+import "../../interfaces/IBurnableMintableERC1155Token.sol";
 
 /**
  * @title ERC1155BridgeToken
@@ -20,16 +20,6 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
     address public bridgeContract;
 
     bool private hasAlreadyMinted;
-
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        address _bridgeContract
-    ) ERC1155("") {
-        name = _name;
-        symbol = _symbol;
-        bridgeContract = _bridgeContract;
-    }
 
     /**
      * @dev Throws if sender is not a bridge contract.
@@ -61,12 +51,6 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
             interfaceId == INTERFACE_ID_ERC1155 ||
             interfaceId == INTERFACE_ID_ERC1155_METADATA_URI;
     }
-
-    /**
-     * @dev Stub for preventing unneeded storage writes.
-     * All supported interfaces are hardcoded in the supportsInterface function.
-     */
-    function _registerInterface(bytes4) internal override {}
 
     /**
      * @dev Mint a batch of new ERC1155 tokens.
@@ -120,6 +104,7 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
      */
     function setMetadata(string calldata _name, string calldata _symbol) external onlyOwner {
         require(bytes(_name).length > 0 && bytes(_symbol).length > 0);
+
         name = _name;
         symbol = _symbol;
     }

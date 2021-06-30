@@ -1,8 +1,8 @@
 pragma solidity 0.7.5;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "../interfaces/IOwnable.sol";
-import "../interfaces/IBurnableMintableERC721Token.sol";
+import "./ERC721.sol";
+import "../../interfaces/IOwnable.sol";
+import "../../interfaces/IBurnableMintableERC721Token.sol";
 
 /**
  * @title ERC721BridgeToken
@@ -10,14 +10,6 @@ import "../interfaces/IBurnableMintableERC721Token.sol";
  */
 contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     address public bridgeContract;
-
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        address _bridgeContract
-    ) ERC721(_name, _symbol) {
-        bridgeContract = _bridgeContract;
-    }
 
     /**
      * @dev Throws if sender is not a bridge contract.
@@ -53,12 +45,6 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     }
 
     /**
-     * @dev Stub for preventing unneeded storage writes.
-     * All supported interfaces are hardcoded in the supportsInterface function.
-     */
-    function _registerInterface(bytes4) internal override {}
-
-    /**
      * @dev Mint new ERC721 token.
      * Only bridge contract is authorized to mint tokens.
      * @param _to address of the newly created token owner.
@@ -77,27 +63,17 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
         _burn(_tokenId);
     }
 
-    // hack to access private fields in ERC721 contract
-    struct MetadataStorage {
-        string name;
-        string symbol;
-    }
-
     /**
      * @dev Updated bridged token name/symbol parameters.
      * Only bridge owner or bridge itself can call this method.
-     * @param _name new name parameter, will be saved as is, without additional suffixes like " from Mainnet".
-     * @param _symbol new symbol parameter.
+     * @param name new name parameter, will be saved as is, without additional suffixes like " from Mainnet".
+     * @param symbol new symbol parameter.
      */
-    function setMetadata(string calldata _name, string calldata _symbol) external onlyOwner {
-        require(bytes(_name).length > 0 && bytes(_symbol).length > 0);
+    function setMetadata(string calldata name, string calldata symbol) external onlyOwner {
+        require(bytes(name).length > 0 && bytes(symbol).length > 0);
 
-        MetadataStorage storage metadata;
-        assembly {
-            metadata.slot := 6
-        }
-        metadata.name = _name;
-        metadata.symbol = _symbol;
+        _name = name;
+        _symbol = symbol;
     }
 
     /**

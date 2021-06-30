@@ -66,8 +66,10 @@ const AMBEventABI = filterEvents(AMBABI)
 const HomeABI = [...require('../build/contracts/HomeNFTOmnibridge.json').abi, ...AMBEventABI]
 const ForeignABI = [...require('../build/contracts/ForeignNFTOmnibridge.json').abi, ...AMBEventABI]
 
-const ERC721 = require('../build/contracts/ERC721BridgeToken.json')
-const ERC1155 = require('../build/contracts/ERC1155BridgeToken.json')
+const ERC721 = require('../build/contracts/ERC721BridgeTokenMetaTx.json')
+const ERC721TokenProxy = require('../build/contracts/ERC721TokenProxy.json')
+const ERC1155 = require('../build/contracts/ERC1155BridgeTokenMetaTx.json')
+const ERC1155TokenProxy = require('../build/contracts/ERC1155TokenProxy.json')
 
 const scenarios = [
   require('./scenarios/erc1155/bridgeNativeForeignTokens'),
@@ -319,28 +321,40 @@ async function createEnv(web3Home, web3Foreign) {
     homeTokenERC721 = new web3Home.eth.Contract(ERC721TokenABI, HOME_ERC721_TOKEN_ADDRESS, homeOptions)
   } else {
     console.log('Deploying test Home ERC721 token')
-    homeTokenERC721 = await deploy(web3Home, homeOptions, ERC721TokenABI, ERC721.bytecode, args)
+    const impl = await deploy(web3Home, homeOptions, ERC721TokenABI, ERC721.bytecode, [])
+    const newArgs = [toAddress(impl), ...args]
+    const proxy = await deploy(web3Home, homeOptions, ERC721TokenProxy.abi, ERC721TokenProxy.bytecode, newArgs)
+    homeTokenERC721 = new web3Home.eth.Contract(ERC721TokenABI, toAddress(proxy), homeOptions)
   }
   if (HOME_ERC1155_TOKEN_ADDRESS) {
     console.log('Using existing Home ERC1155 token')
     homeTokenERC1155 = new web3Home.eth.Contract(ERC1155TokenABI, HOME_ERC1155_TOKEN_ADDRESS, homeOptions)
   } else {
     console.log('Deploying test Home ERC1155 token')
-    homeTokenERC1155 = await deploy(web3Home, homeOptions, ERC1155TokenABI, ERC1155.bytecode, args)
+    const impl = await deploy(web3Home, homeOptions, ERC1155TokenABI, ERC1155.bytecode, [])
+    const newArgs = [toAddress(impl), ...args]
+    const proxy = await deploy(web3Home, homeOptions, ERC1155TokenProxy.abi, ERC1155TokenProxy.bytecode, newArgs)
+    homeTokenERC1155 = new web3Home.eth.Contract(ERC1155TokenABI, toAddress(proxy), homeOptions)
   }
   if (FOREIGN_ERC721_TOKEN_ADDRESS) {
     console.log('Using existing Foreign ERC721 token')
     foreignTokenERC721 = new web3Foreign.eth.Contract(ERC721TokenABI, FOREIGN_ERC721_TOKEN_ADDRESS, foreignOptions)
   } else {
     console.log('Deploying test Foreign ERC721 token')
-    foreignTokenERC721 = await deploy(web3Foreign, foreignOptions, ERC721TokenABI, ERC721.bytecode, args)
+    const impl = await deploy(web3Foreign, foreignOptions, ERC721TokenABI, ERC721.bytecode, [])
+    const newArgs = [toAddress(impl), ...args]
+    const proxy = await deploy(web3Foreign, foreignOptions, ERC721TokenProxy.abi, ERC721TokenProxy.bytecode, newArgs)
+    foreignTokenERC721 = new web3Foreign.eth.Contract(ERC721TokenABI, toAddress(proxy), foreignOptions)
   }
   if (FOREIGN_ERC1155_TOKEN_ADDRESS) {
     console.log('Using existing Foreign ERC1155 token')
     foreignTokenERC1155 = new web3Foreign.eth.Contract(ERC1155TokenABI, FOREIGN_ERC1155_TOKEN_ADDRESS, foreignOptions)
   } else {
     console.log('Deploying test Foreign ERC1155 token')
-    foreignTokenERC1155 = await deploy(web3Foreign, foreignOptions, ERC1155TokenABI, ERC1155.bytecode, args)
+    const impl = await deploy(web3Foreign, foreignOptions, ERC1155TokenABI, ERC1155.bytecode, [])
+    const newArgs = [toAddress(impl), ...args]
+    const proxy = await deploy(web3Foreign, foreignOptions, ERC1155TokenProxy.abi, ERC1155TokenProxy.bytecode, newArgs)
+    foreignTokenERC1155 = new web3Foreign.eth.Contract(ERC1155TokenABI, toAddress(proxy), foreignOptions)
   }
 
   console.log('Fetching block numbers')

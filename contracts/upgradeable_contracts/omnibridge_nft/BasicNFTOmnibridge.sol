@@ -2,6 +2,7 @@ pragma solidity 0.7.5;
 // solhint-disable-next-line compiler-version
 pragma abicoder v2;
 
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "../Initializable.sol";
 import "../Upgradeable.sol";
 import "../../interfaces/IBurnableMintableERC1155Token.sol";
@@ -18,11 +19,10 @@ import "./components/bridged/TokenImageStorage.sol";
 import "./components/bridged/ERC721TokenProxy.sol";
 import "./components/bridged/ERC1155TokenProxy.sol";
 import "./components/native/NFTMediatorBalanceStorage.sol";
-import "../../tokens/ERC721BridgeToken.sol";
 
 /**
  * @title BasicNFTOmnibridge
- * @dev Commong functionality for multi-token mediator for ERC721 tokens intended to work on top of AMB bridge.
+ * @dev Common functionality for multi-token mediator for ERC721 tokens intended to work on top of AMB bridge.
  */
 abstract contract BasicNFTOmnibridge is
     Initializable,

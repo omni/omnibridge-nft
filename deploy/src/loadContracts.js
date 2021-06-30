@@ -3,8 +3,8 @@ module.exports = {
   OwnedUpgradeabilityProxy: require(`../../build/contracts/OwnedUpgradeabilityProxy.json`),
   HomeNFTOmnibridge: require(`../../build/contracts/HomeNFTOmnibridge.json`),
   ForeignNFTOmnibridge: require(`../../build/contracts/ForeignNFTOmnibridge.json`),
-  ERC721BridgeToken: require(`../../build/contracts/ERC721BridgeToken.json`),
-  ERC1155BridgeToken: require(`../../build/contracts/ERC1155BridgeToken.json`),
+  ERC721BridgeToken: require(`../../build/contracts/ERC721BridgeTokenMetaTx.json`),
+  ERC1155BridgeToken: require(`../../build/contracts/ERC1155BridgeTokenMetaTx.json`),
   NFTForwardingRulesManager: require(`../../build/contracts/NFTForwardingRulesManager.json`),
   SelectorTokenGasLimitManager: require(`../../build/contracts/SelectorTokenGasLimitManager.json`),
 }

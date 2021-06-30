@@ -27,6 +27,10 @@ contract ERC1155TokenProxy is Proxy {
     string private _baseURI;
     address private bridgeContract;
 
+    bool private hasAlreadyMinted;
+
+    mapping(address => uint256) private nonces;
+
     /**
      * @dev Creates an upgradeable token proxy for ERC1155BridgeToken.sol, initializes its eternalStorage.
      * @param _tokenImage address of the token image used for mirroring all functions.
@@ -88,6 +92,6 @@ contract ERC1155TokenProxy is Proxy {
             uint64 patch
         )
     {
-        return (1, 0, 0);
+        return (1, 0, 1);
     }
 }
