@@ -113,6 +113,18 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
     }
 
     /**
+     * @dev Updated bridged token name/symbol parameters.
+     * Only bridge owner or bridge itself can call this method.
+     * @param _name new name parameter, will be saved as is, without additional suffixes like " from Mainnet".
+     * @param _symbol new symbol parameter.
+     */
+    function setMetadata(string calldata _name, string calldata _symbol) external onlyOwner {
+        require(bytes(_name).length > 0 && bytes(_symbol).length > 0);
+        name = _name;
+        symbol = _symbol;
+    }
+
+    /**
      * @dev Updates the bridge contract address.
      * Can be called by bridge owner after token contract was instantiated.
      * @param _bridgeContract address of the new bridge contract.
@@ -170,6 +182,6 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
             uint64 patch
         )
     {
-        return (1, 1, 0);
+        return (1, 2, 0);
     }
 }

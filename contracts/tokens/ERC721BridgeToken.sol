@@ -77,6 +77,29 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
         _burn(_tokenId);
     }
 
+    // hack to access private fields in ERC721 contract
+    struct MetadataStorage {
+        string name;
+        string symbol;
+    }
+
+    /**
+     * @dev Updated bridged token name/symbol parameters.
+     * Only bridge owner or bridge itself can call this method.
+     * @param _name new name parameter, will be saved as is, without additional suffixes like " from Mainnet".
+     * @param _symbol new symbol parameter.
+     */
+    function setMetadata(string calldata _name, string calldata _symbol) external onlyOwner {
+        require(bytes(_name).length > 0 && bytes(_symbol).length > 0);
+
+        MetadataStorage storage metadata;
+        assembly {
+            metadata.slot := 6
+        }
+        metadata.name = _name;
+        metadata.symbol = _symbol;
+    }
+
     /**
      * @dev Sets the base URI for all tokens.
      * Can be called by bridge owner after token contract was instantiated.
@@ -118,6 +141,6 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
             uint64 patch
         )
     {
-        return (1, 0, 1);
+        return (1, 1, 0);
     }
 }
