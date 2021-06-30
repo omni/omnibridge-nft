@@ -64,6 +64,19 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     }
 
     /**
+     * @dev Updated bridged token name/symbol parameters.
+     * Only bridge owner or bridge itself can call this method.
+     * @param name new name parameter, will be saved as is, without additional suffixes like " from Mainnet".
+     * @param symbol new symbol parameter.
+     */
+    function setMetadata(string calldata name, string calldata symbol) external onlyOwner {
+        require(bytes(name).length > 0 && bytes(symbol).length > 0);
+
+        _name = name;
+        _symbol = symbol;
+    }
+
+    /**
      * @dev Sets the base URI for all tokens.
      * Can be called by bridge owner after token contract was instantiated.
      * @param _baseURI new base URI.

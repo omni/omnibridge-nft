@@ -87,14 +87,18 @@ abstract contract BasicNFTOmnibridge is
         address bridgedToken = bridgedTokenAddress(_token);
         if (bridgedToken == address(0)) {
             if (bytes(_name).length == 0) {
-                require(bytes(_symbol).length > 0);
-                _name = _symbol;
-            } else if (bytes(_symbol).length == 0) {
-                _symbol = _name;
+                if (bytes(_symbol).length > 0) {
+                    _name = _transformName(_symbol);
+                }
+            } else {
+                if (bytes(_symbol).length == 0) {
+                    _symbol = _name;
+                }
+                _name = _transformName(_name);
             }
             bridgedToken = _values.length > 0
-                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _transformName(_name), _symbol, address(this)))
-                : address(new ERC721TokenProxy(tokenImageERC721(), _transformName(_name), _symbol, address(this)));
+                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)))
+                : address(new ERC721TokenProxy(tokenImageERC721(), _name, _symbol, address(this)));
             _setTokenAddressPair(_token, bridgedToken);
         }
 
@@ -295,8 +299,6 @@ abstract contract BasicNFTOmnibridge is
 
             string memory name = _readName(_token);
             string memory symbol = _readSymbol(_token);
-
-            require(bytes(name).length > 0 || bytes(symbol).length > 0);
 
             return
                 abi.encodeWithSelector(

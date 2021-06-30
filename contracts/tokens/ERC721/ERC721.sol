@@ -16,6 +16,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  * @title ERC721
  * @dev Slightly reworked version of @openzeppelin/contracts/token/ERC721/ERC721.sol
  * Extracted internal _setApprovalForAll method.
+ * Made name and symbol internal.
  * Removed constructor, as this contract works through a proxy storage.
  */
 contract ERC721 is Context, ERC165, IERC721, IERC721Metadata, IERC721Enumerable {
@@ -42,10 +43,10 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata, IERC721Enumerable 
     mapping(address => mapping(address => bool)) private _operatorApprovals;
 
     // Token name
-    string private _name;
+    string internal _name;
 
     // Token symbol
-    string private _symbol;
+    string internal _symbol;
 
     // Optional mapping for token URIs
     mapping(uint256 => string) private _tokenURIs;
