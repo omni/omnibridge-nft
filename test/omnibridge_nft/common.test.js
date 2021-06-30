@@ -1159,8 +1159,8 @@ function runTests(accounts, isHome) {
             expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
 
             const deployedToken = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
-            expect(await deployedToken.name()).to.be.equal(modifyName('Bridged NFT'))
-            expect(await deployedToken.symbol()).to.be.equal('NFT')
+            expect(await deployedToken.name()).to.be.equal('')
+            expect(await deployedToken.symbol()).to.be.equal('')
 
             await deployedToken.setMetadata('newName', 'newSymbol', { from: user }).should.be.rejected
             await deployedToken.setMetadata('newName', 'newSymbol', { from: owner }).should.be.fulfilled
@@ -1750,8 +1750,8 @@ function runTests(accounts, isHome) {
             expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
 
             const deployedToken = await ERC1155BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
-            expect(await deployedToken.name()).to.be.equal(modifyName('Bridged NFT'))
-            expect(await deployedToken.symbol()).to.be.equal('NFT')
+            expect(await deployedToken.name()).to.be.equal('')
+            expect(await deployedToken.symbol()).to.be.equal('')
 
             await deployedToken.setMetadata('newName', 'newSymbol', { from: user }).should.be.rejected
             await deployedToken.setMetadata('newName', 'newSymbol', { from: owner }).should.be.fulfilled

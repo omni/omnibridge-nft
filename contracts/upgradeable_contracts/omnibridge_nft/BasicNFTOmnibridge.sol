@@ -86,17 +86,19 @@ abstract contract BasicNFTOmnibridge is
     ) external onlyMediator {
         address bridgedToken = bridgedTokenAddress(_token);
         if (bridgedToken == address(0)) {
-            if (bytes(_name).length == 0 && bytes(_symbol).length == 0) {
-                _name = "Bridged NFT";
-                _symbol = "NFT";
-            } else if (bytes(_name).length == 0) {
-                _name = _symbol;
-            } else if (bytes(_symbol).length == 0) {
-                _symbol = _name;
+            if (bytes(_name).length == 0) {
+                if (bytes(_symbol).length > 0) {
+                    _name = _transformName(_symbol);
+                }
+            } else {
+                if (bytes(_symbol).length == 0) {
+                    _symbol = _name;
+                }
+                _name = _transformName(_name);
             }
             bridgedToken = _values.length > 0
-                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _transformName(_name), _symbol, address(this)))
-                : address(new ERC721TokenProxy(tokenImageERC721(), _transformName(_name), _symbol, address(this)));
+                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)))
+                : address(new ERC721TokenProxy(tokenImageERC721(), _name, _symbol, address(this)));
             _setTokenAddressPair(_token, bridgedToken);
         }
 
