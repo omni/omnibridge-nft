@@ -11,21 +11,5 @@ if [ -f /.dockerenv ]; then
   exit 0
 fi
 
-which docker-compose > /dev/null
-if [ "$?" == "1" ]; then
-  echo "docker-compose is needed to use this type of deployment"
-  exit 1
-fi
-
-if [ ! -f ./deploy/.env ]; then
-  echo "The .env file not found in the 'deploy' directory"
-  exit 3
-fi
-
-docker-compose images nft-omnibridge-contracts >/dev/null 2>/dev/null
-if [ "$?" == "1" ]; then
-  echo "Docker image 'nft-omnibridge-contracts' not found"
-  exit 2
-fi
-
-docker-compose run nft-omnibridge-contracts deploy.sh "$@"
+echo "The deployment must start withing the docker container"
+exit 1

@@ -1,9 +1,5 @@
 version: "3.3"
 services:
-  nft-omnibridge-contracts:
-    build: .
-    command: "true"
-    env_file: ./deploy/.env
   dev:
     build:
       context: .
