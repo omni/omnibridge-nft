@@ -58,7 +58,8 @@ switch (BRIDGE_MODE) {
       HOME_ERC1155_TOKEN_IMAGE: optionalAddressValidator(),
       FOREIGN_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       FOREIGN_ERC1155_TOKEN_IMAGE: optionalAddressValidator(),
-      HOME_FORWARDING_RULES_MANAGER: optionalAddressOrFalseValidator(),
+      HOME_FORWARDING_RULES_MANAGER_IMPLEMENTATION: optionalAddressOrFalseValidator(),
+      HOME_GAS_LIMIT_MANAGER_IMPLEMENTATION: optionalAddressValidator(),
       HOME_TOKEN_NAME_SUFFIX: suffixValidator(),
       FOREIGN_TOKEN_NAME_SUFFIX: suffixValidator(),
     }

@@ -1,6 +1,6 @@
-const { web3Foreign, deploymentAddress } = require('../web3')
+const { web3Foreign } = require('../web3')
 const { EternalStorageProxy, ForeignNFTOmnibridge } = require('../loadContracts')
-const { sendRawTxForeign, transferProxyOwnership } = require('../deploymentUtils')
+const { sendTx, transferProxyOwnership } = require('../deploymentUtils')
 
 const {
   FOREIGN_BRIDGE_OWNER,
@@ -27,7 +27,6 @@ function initializeMediator({
 }
 
 async function initialize({ homeBridge, foreignBridge, tokenImageERC721, tokenImageERC1155 }) {
-  let nonce = await web3Foreign.eth.getTransactionCount(deploymentAddress)
   const contract = new web3Foreign.eth.Contract(ForeignNFTOmnibridge.abi, foreignBridge)
 
   console.log('\n[Foreign] Initializing Bridge Mediator with following parameters:')
@@ -44,9 +43,8 @@ async function initialize({ homeBridge, foreignBridge, tokenImageERC721, tokenIm
     },
   })
 
-  await sendRawTxForeign({
+  await sendTx('foreign', {
     data: initializeData,
-    nonce: nonce++,
     to: foreignBridge,
   })
 
@@ -56,7 +54,6 @@ async function initialize({ homeBridge, foreignBridge, tokenImageERC721, tokenIm
     network: 'foreign',
     proxy,
     newOwner: FOREIGN_UPGRADEABLE_ADMIN,
-    nonce: nonce++,
   })
 }
 

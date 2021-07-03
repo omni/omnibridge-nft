@@ -1,8 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const env = require('./src/loadEnv')
-
-const { BRIDGE_MODE } = env
+const { BRIDGE_MODE } = require('./src/loadEnv')
 
 const deployResultsPath = path.join(__dirname, './bridgeDeploymentResults.json')
 

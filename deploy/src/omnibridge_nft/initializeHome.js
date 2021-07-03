@@ -1,6 +1,6 @@
-const { web3Home, deploymentAddress } = require('../web3')
+const { web3Home } = require('../web3')
 const { EternalStorageProxy, HomeNFTOmnibridge } = require('../loadContracts')
-const { sendRawTxHome, transferProxyOwnership } = require('../deploymentUtils')
+const { sendTx, transferProxyOwnership } = require('../deploymentUtils')
 
 const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN } = require('../loadEnv')
 
@@ -47,7 +47,6 @@ async function initialize({
   forwardingRulesManager,
   gasLimitManager,
 }) {
-  let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
   const mediatorContract = new web3Home.eth.Contract(HomeNFTOmnibridge.abi, homeBridge)
 
   console.log('\n[Home] Initializing Bridge Mediator with following parameters:')
@@ -65,9 +64,8 @@ async function initialize({
     },
   })
 
-  await sendRawTxHome({
+  await sendTx('home', {
     data: initializeMediatorData,
-    nonce: nonce++,
     to: homeBridge,
   })
 
@@ -76,7 +74,6 @@ async function initialize({
   await transferProxyOwnership({
     proxy: mediatorProxy,
     newOwner: HOME_UPGRADEABLE_ADMIN,
-    nonce: nonce++,
   })
 }
 

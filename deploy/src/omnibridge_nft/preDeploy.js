@@ -6,7 +6,8 @@ const {
   HOME_ERC1155_TOKEN_IMAGE,
   FOREIGN_ERC721_TOKEN_IMAGE,
   FOREIGN_ERC1155_TOKEN_IMAGE,
-  HOME_FORWARDING_RULES_MANAGER,
+  HOME_FORWARDING_RULES_MANAGER_IMPLEMENTATION,
+  HOME_GAS_LIMIT_MANAGER_IMPLEMENTATION,
 } = require('../loadEnv')
 const { isContract } = require('../deploymentUtils')
 
@@ -45,9 +46,15 @@ async function preDeploy() {
     }
   }
 
-  if (HOME_FORWARDING_RULES_MANAGER) {
-    if (!(await isContract(web3Home, HOME_FORWARDING_RULES_MANAGER))) {
-      throw new Error(`HOME_FORWARDING_RULES_MANAGER should be a contract address`)
+  if (HOME_FORWARDING_RULES_MANAGER_IMPLEMENTATION) {
+    if (!(await isContract(web3Home, HOME_FORWARDING_RULES_MANAGER_IMPLEMENTATION))) {
+      throw new Error(`HOME_FORWARDING_RULES_MANAGER_IMPLEMENTATION should be a contract address`)
+    }
+  }
+
+  if (HOME_GAS_LIMIT_MANAGER_IMPLEMENTATION) {
+    if (!(await isContract(web3Home, HOME_GAS_LIMIT_MANAGER_IMPLEMENTATION))) {
+      throw new Error(`HOME_GAS_LIMIT_MANAGER_IMPLEMENTATION should be a contract address`)
     }
   }
 }
