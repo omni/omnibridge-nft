@@ -12,13 +12,12 @@ const {
   DEPLOYMENT_ACCOUNT_PRIVATE_KEY,
 } = require('./web3')
 
-async function deployContract(contractJson, args, { network, nonce }) {
-  let web3
-  if (network === 'foreign') {
-    web3 = web3Foreign
-  } else {
-    web3 = web3Home
-  }
+function getWeb3(network) {
+  return network === 'foreign' ? web3Foreign : web3Home
+}
+
+async function deployContract(network, contractJson, args) {
+  const web3 = getWeb3(network)
   const instance = new web3.eth.Contract(contractJson.abi)
   const result = instance
     .deploy({
@@ -28,7 +27,6 @@ async function deployContract(contractJson, args, { network, nonce }) {
     .encodeABI()
   const receipt = await sendTx(network, {
     data: result,
-    nonce,
     to: null,
   })
   instance.options.address = receipt.contractAddress
@@ -37,113 +35,113 @@ async function deployContract(contractJson, args, { network, nonce }) {
   return instance
 }
 
-function sendTx(network, options) {
-  return (network === 'foreign' ? sendRawTxForeign : sendRawTxHome)(options)
+const nonces = {}
+async function getNonce(network, addr) {
+  const web3 = getWeb3(network)
+  const key = `${network}-${addr}`
+  if (!nonces[key]) {
+    nonces[key] = await web3.eth.getTransactionCount(addr)
+  }
+  return nonces[key]
 }
 
-async function sendRawTxHome(options) {
-  return sendRawTx({
-    ...options,
-    gasPrice: HOME_DEPLOYMENT_GAS_PRICE,
-    web3: web3Home,
-  })
+function updateNonce(network, addr) {
+  nonces[`${network}-${addr}`]++
 }
 
-async function sendRawTxForeign(options) {
-  return sendRawTx({
-    ...options,
-    gasPrice: FOREIGN_DEPLOYMENT_GAS_PRICE,
-    web3: web3Foreign,
-  })
+async function sendTx(network, options) {
+  const net = network || 'home'
+  const from = deploymentAddress
+  const nonce = await getNonce(net, from)
+  const gasPrice = net === 'foreign' ? FOREIGN_DEPLOYMENT_GAS_PRICE : HOME_DEPLOYMENT_GAS_PRICE
+  const web3 = getWeb3(net)
+  const opts = { ...options, from, nonce, gasPrice, web3 }
+  const signedTx = await buildTx(opts)
+  const receipt = await sendRawTx(web3, signedTx)
+  updateNonce(net, from)
+  return receipt
 }
 
-async function sendRawTx({ data, nonce, to, web3, gasPrice, value }) {
-  try {
-    const estimatedGas = new BigNumber(
-      await web3.eth.estimateGas({
-        from: deploymentAddress,
-        value,
-        to,
-        data,
-      })
-    )
-
-    const blockData = await web3.eth.getBlock('latest')
-    const blockGasLimit = new BigNumber(blockData.gasLimit)
-    if (estimatedGas.isGreaterThan(blockGasLimit)) {
-      throw new Error(
-        `estimated gas greater (${estimatedGas.toString()}) than the block gas limit (${blockGasLimit.toString()})`
-      )
-    }
-    let gas = estimatedGas.multipliedBy(new BigNumber(1 + GAS_LIMIT_EXTRA))
-    if (gas.isGreaterThan(blockGasLimit)) {
-      gas = blockGasLimit
-    } else {
-      gas = gas.toFixed(0)
-    }
-
-    const rawTx = {
-      nonce,
-      gasPrice: Web3Utils.toHex(gasPrice),
-      gasLimit: Web3Utils.toHex(gas),
+async function buildTx({ data, nonce, to, web3, gasPrice, value }) {
+  const estimatedGas = new BigNumber(
+    await web3.eth.estimateGas({
+      from: deploymentAddress,
+      value,
       to,
       data,
-      value,
-    }
+    })
+  )
 
-    const signedTx = await new Promise((res) =>
-      web3.eth.accounts.signTransaction(rawTx, DEPLOYMENT_ACCOUNT_PRIVATE_KEY, (err, signedTx) => res(signedTx))
+  const blockData = await web3.eth.getBlock('latest')
+  const blockGasLimit = new BigNumber(blockData.gasLimit)
+  if (estimatedGas.isGreaterThan(blockGasLimit)) {
+    throw new Error(
+      `estimated gas greater (${estimatedGas.toString()}) than the block gas limit (${blockGasLimit.toString()})`
     )
-    const receipt = await web3.eth
-      .sendSignedTransaction(signedTx.rawTransaction)
-      .once('transactionHash', (txHash) => console.log('pending txHash', txHash))
-      .on('error', (e) => {
-        throw e
-      })
-    assert.ok(receipt.status, 'Transaction Failed')
-    return receipt
-  } catch (e) {
-    console.error(e)
   }
-  return null
+  let gas = estimatedGas.multipliedBy(new BigNumber(1 + GAS_LIMIT_EXTRA))
+  if (gas.isGreaterThan(blockGasLimit)) {
+    gas = blockGasLimit
+  } else {
+    gas = gas.toFixed(0)
+  }
+
+  const rawTx = {
+    nonce,
+    gasPrice: Web3Utils.toHex(gasPrice),
+    gasLimit: Web3Utils.toHex(gas),
+    to,
+    data,
+    value,
+  }
+
+  return new Promise((res) =>
+    web3.eth.accounts.signTransaction(rawTx, DEPLOYMENT_ACCOUNT_PRIVATE_KEY, (err, signedTx) => res(signedTx))
+  )
 }
 
-async function upgradeProxy({ proxy, implementationAddress, version, nonce, network }) {
+async function sendRawTx(web3, signedTx) {
+  const receipt = await web3.eth
+    .sendSignedTransaction(signedTx.rawTransaction)
+    .once('transactionHash', (txHash) => console.log('pending txHash', txHash))
+    .on('error', (e) => {
+      throw e
+    })
+  assert.ok(receipt.status, 'Transaction Failed')
+  return receipt
+}
+
+async function upgradeProxy({ proxy, implementationAddress, version, network }) {
   await sendTx(network, {
     data: proxy.methods.upgradeTo(version, implementationAddress).encodeABI(),
-    nonce,
     to: proxy.options.address,
   })
 }
 
-async function upgradeProxyAndCall({ proxy, implementationAddress, version, data, nonce, network }) {
+async function upgradeProxyAndCall({ proxy, implementationAddress, version, data, network }) {
   await sendTx(network, {
     data: proxy.methods.upgradeToAndCall(version, implementationAddress, data).encodeABI(),
-    nonce,
     to: proxy.options.address,
   })
 }
 
-async function transferProxyOwnership({ proxy, newOwner, nonce, network }) {
+async function transferProxyOwnership({ proxy, newOwner, network }) {
   await sendTx(network, {
     data: proxy.methods.transferProxyOwnership(newOwner).encodeABI(),
-    nonce,
     to: proxy.options.address,
   })
 }
 
-async function transferOwnership({ contract, newOwner, nonce, network }) {
+async function transferOwnership({ contract, newOwner, network }) {
   await sendTx(network, {
     data: contract.methods.transferOwnership(newOwner).encodeABI(),
-    nonce,
     to: contract.options.address,
   })
 }
 
-async function setBridgeContract({ contract, bridgeAddress, nonce, network }) {
+async function setBridgeContract({ contract, bridgeAddress, network }) {
   await sendTx(network, {
     data: contract.methods.setBridgeContract(bridgeAddress).encodeABI(),
-    nonce,
     to: contract.options.address,
   })
 }
@@ -154,9 +152,8 @@ async function isContract(web3, address) {
 }
 
 module.exports = {
+  sendTx,
   deployContract,
-  sendRawTxHome,
-  sendRawTxForeign,
   upgradeProxy,
   upgradeProxyAndCall,
   transferProxyOwnership,

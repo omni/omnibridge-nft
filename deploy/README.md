@@ -114,9 +114,14 @@ HOME_ERC721_TOKEN_IMAGE=
 # leave empty, if you want to deploy a new ERC1155BridgeToken for further usage
 HOME_ERC1155_TOKEN_IMAGE=
 # address of an already deployed NFTForwardingRulesManager contract for managing AMB lane permissions.
-# leave empty, if you want to deploy a new NFTForwardingRulesManager.
+# will be used as an implementation for the new proxy contract
+# leave empty, if you want to deploy a new NFTForwardingRulesManager contract.
 # put false, if you want to do not use lane permissions.
-HOME_FORWARDING_RULES_MANAGER=
+HOME_FORWARDING_RULES_MANAGER_IMPLEMENTATION=
+# address of an already deployed SelectorTokenGasLimitManager contract for managing AMB messages gas limits.
+# will be used as an implementation for the new proxy contract
+# leave empty, if you want to deploy a new SelectorTokenGasLimitManager contract.
+HOME_GAS_LIMIT_MANAGER_IMPLEMENTATION=
 
 # address of an already deployed ERC721BridgeToken contract that will be used as an implementation for all bridged tokens on the Foreign side
 # leave empty, if you want to deploy a new ERC721BridgeToken for further usage
