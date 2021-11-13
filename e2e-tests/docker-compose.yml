@@ -2,10 +2,10 @@ version: '3.8'
 services:
   home:
     image: trufflesuite/ganache-cli
-    command: --deterministic --chainId 1337 --blockTime 1 --gasLimit 10000000
+    command: --deterministic --chainId 1337 --blockTime 1 --gasLimit 10000000 --noVMErrorsOnRPCResponse
   foreign:
     image: trufflesuite/ganache-cli
-    command: --deterministic --chainId 1338 --blockTime 1 --gasLimit 10000000
+    command: --deterministic --chainId 1338 --blockTime 1 --gasLimit 10000000 --noVMErrorsOnRPCResponse
   deploy-amb:
     image: poanetwork/tokenbridge-contracts
     env_file: local-envs/deploy-amb.env
@@ -40,6 +40,10 @@ services:
     image: poanetwork/tokenbridge-oracle:latest
     env_file: local-envs/oracle.env
     entrypoint: yarn watcher:affirmation-request
+  bridge_information:
+    image: poanetwork/tokenbridge-oracle:latest
+    env_file: local-envs/oracle.env
+    entrypoint: yarn watcher:information-request
   bridge_senderhome:
     image: poanetwork/tokenbridge-oracle:latest
     env_file: local-envs/oracle.env

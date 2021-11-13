@@ -22,7 +22,7 @@ contract NativeTokensRegistry is EternalStorage {
     /**
      * @dev Checks if a given token is a bridged token that is native to this side of the bridge.
      * @param _token address of token contract.
-     * @return message id of the send message.
+     * @return true, if token is registered in this contract.
      */
     function isRegisteredAsNativeToken(address _token) public view returns (bool) {
         return uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] > 0;
@@ -34,8 +34,6 @@ contract NativeTokensRegistry is EternalStorage {
      * @param _state registration state.
      */
     function _setNativeTokenIsRegistered(address _token, uint256 _state) internal {
-        if (uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] != _state) {
-            uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] = _state;
-        }
+        uintStorage[keccak256(abi.encodePacked("tokenRegistered", _token))] = _state;
     }
 }

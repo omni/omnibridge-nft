@@ -21,6 +21,9 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
 
     bool private hasAlreadyMinted;
 
+    // metadata field for Opensea, it is not a real owner
+    address public owner;
+
     constructor(
         string memory _name,
         string memory _symbol,
@@ -151,6 +154,16 @@ contract ERC1155BridgeToken is ERC1155, IBurnableMintableERC1155Token {
      */
     function setTokenURI(uint256 _tokenId, string calldata _tokenURI) external onlyOwner {
         tokenURIs[_tokenId] = _tokenURI;
+    }
+
+    /**
+     * @dev Sets the owner for this particular token.
+     * Ownership of the bridged token does not allow to mint or change tokens on-chain.
+     * It is only needed for convenience metadata management on the Opensea marketplace.
+     * @param _owner new token owner.
+     */
+    function setOwner(address _owner) external onlyOwner {
+        owner = _owner;
     }
 
     /**

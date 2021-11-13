@@ -4,13 +4,20 @@ pragma abicoder v2;
 
 import "./modules/forwarding_rules/NFTForwardingRulesConnector.sol";
 import "./modules/gas_limit/SelectorTokenGasLimitConnector.sol";
+import "./components/bridged/MetadataPuller.sol";
+import "./components/native/MetadataPusher.sol";
 
 /**
  * @title HomeNFTOmnibridge
  * @dev Home side implementation for multi-token ERC721 mediator intended to work on top of AMB bridge.
  * It is designed to be used as an implementation contract of EternalStorageProxy contract.
  */
-contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimitConnector {
+contract HomeNFTOmnibridge is
+    NFTForwardingRulesConnector,
+    SelectorTokenGasLimitConnector,
+    MetadataPuller,
+    MetadataPusher
+{
     constructor(string memory _suffix) BasicNFTOmnibridge(_suffix) {}
 
     /**
@@ -31,7 +38,7 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
         address _imageERC721,
         address _imageERC1155,
         address _forwardingRulesManager
-    ) external onlyRelevantSender returns (bool) {
+    ) external onlyRelevantSender {
         require(!isInitialized());
 
         _setBridgeContract(_bridgeContract);
@@ -43,8 +50,6 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
         _setForwardingRulesManager(_forwardingRulesManager);
 
         setInitialize();
-
-        return isInitialized();
     }
 
     /**

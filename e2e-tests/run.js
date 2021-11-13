@@ -39,6 +39,21 @@ const HOMEAMBABI = [
     ],
     type: 'function',
   },
+  {
+    name: 'enableAsyncRequestSelector',
+    inputs: [
+      {
+        name: '',
+        type: 'bytes32',
+      },
+      {
+        name: '',
+        type: 'bool',
+      },
+    ],
+    outputs: [],
+    type: 'function',
+  },
 ]
 
 const FOREIGNAMBABI = [
@@ -74,6 +89,8 @@ const scenarios = [
   require('./scenarios/erc1155/bridgeNativeHomeTokens'),
   require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
   require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
+  require('./scenarios/erc1155/homePushMetadata'),
+  require('./scenarios/erc1155/homePullMetadata'),
   require('./scenarios/erc721/bridgeNativeForeignTokens'),
   require('./scenarios/erc721/bridgeNativeHomeTokens'),
   require('./scenarios/erc721/bridgeNativeForeignTokensToOtherUser'),
@@ -82,6 +99,8 @@ const scenarios = [
   require('./scenarios/erc721/fixHomeMediatorBalance'),
   require('./scenarios/erc721/homeRequestFailedMessageFix'),
   require('./scenarios/erc721/foreignRequestFailedMessageFix'),
+  require('./scenarios/erc721/homePushMetadata'),
+  require('./scenarios/erc721/homePullMetadata'),
 ]
 const { ZERO_ADDRESS, toAddress, addPendingTxLogger, signatureToVRS, packSignatures } = require('./utils')
 
@@ -137,6 +156,9 @@ function makeWaitUntilProcessed(contract, finalizationEvent, blockNumber) {
         toBlock: 'latest',
       })
       if (events.length > 0) {
+        if (finalizationEvent === 'InformationRetrieved') {
+          return events[0].returnValues.callbackStatus && events[0].transactionHash
+        }
         return events[0].returnValues.status && events[0].transactionHash
       }
     }
@@ -266,6 +288,22 @@ function makeRelayToken(mediator, defaultFrom, isERC1155 = false) {
   }
 }
 
+function makePullTokenOwner(mediator, from) {
+  return (token) => mediator.methods.pullTokenOwnerUpdate(toAddress(token)).send({ from })
+}
+
+function makePullTokenURI(mediator, from, isERC1155 = false) {
+  return (token, tokenId) => mediator.methods.pullTokenURIUpdate(toAddress(token), tokenId, isERC1155).send({ from })
+}
+
+function makePushTokenOwner(mediator, from) {
+  return (token) => mediator.methods.pushTokenOwnerUpdate(toAddress(token)).send({ from })
+}
+
+function makePushTokenURI(mediator, from, isERC1155 = false) {
+  return (token, tokenId) => mediator.methods.pushTokenURIUpdate(toAddress(token), tokenId, isERC1155).send({ from })
+}
+
 async function createEnv(web3Home, web3Foreign) {
   console.log('Import accounts')
   const users = []
@@ -357,6 +395,7 @@ async function createEnv(web3Home, web3Foreign) {
       getBridgedTokenERC721: makeGetBridgedToken(web3Home, homeMediator, homeOptions, false),
       getBridgedTokenERC1155: makeGetBridgedToken(web3Home, homeMediator, homeOptions, true),
       waitUntilProcessed: makeWaitUntilProcessed(homeAMB, 'AffirmationCompleted', homeBlockNumber),
+      waitUntilInformationReceived: makeWaitUntilProcessed(homeAMB, 'InformationRetrieved', homeBlockNumber),
       withDisabledExecution: makeWithDisabledExecution(homeMediator, owner),
       checkTransferERC721: makeCheckTransfer(web3Home, false),
       checkTransferERC1155: makeCheckTransfer(web3Home, true, false),
@@ -365,6 +404,12 @@ async function createEnv(web3Home, web3Foreign) {
       mintERC1155: makeMint(homeTokenERC1155, users[0], true),
       relayTokenERC721: makeRelayToken(homeMediator, users[0], false),
       relayTokenERC1155: makeRelayToken(homeMediator, users[0], true),
+      pullTokenOwnerUpdate: makePullTokenOwner(homeMediator, users[0]),
+      pullERC721URIUpdate: makePullTokenURI(homeMediator, users[0], false),
+      pullERC1155URIUpdate: makePullTokenURI(homeMediator, users[0], true),
+      pushTokenOwnerUpdate: makePushTokenOwner(homeMediator, users[0]),
+      pushERC721URIUpdate: makePushTokenURI(homeMediator, users[0], false),
+      pushERC1155URIUpdate: makePushTokenURI(homeMediator, users[0], true),
     },
     foreign: {
       web3: web3Foreign,

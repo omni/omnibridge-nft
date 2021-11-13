@@ -16,6 +16,7 @@ const selectors = {
   handleBridgedNFT: '0xb701e094',
   handleNativeNFT: '0x6ca48357',
   fixFailedMessage: '0x276fea8a',
+  updateBridgedTokenMetadata: '0xf4b7a41d',
 }
 
 const { expect } = require('chai')
@@ -1902,6 +1903,119 @@ function runTests(accounts, isHome) {
           expect(events[0].returnValues.dataType).to.be.bignumber.equal('0')
           expect(events[1].returnValues.dataType).to.be.bignumber.equal('128')
           expect(events[2].returnValues.dataType).to.be.bignumber.equal('0')
+        })
+      })
+
+      describe('token metadata update requests', () => {
+        describe('push token metadata updates', () => {
+          it('should send message with new token owner', async () => {
+            await token.setOwner(accounts[7])
+            await contract.pushTokenOwnerUpdate(token.address).should.be.rejected
+            await sendFunctions[0]()
+            await contract.pushTokenOwnerUpdate(token.address)
+
+            const data = token.contract.methods.setOwner(accounts[7]).encodeABI()
+            const updateData =
+              web3.eth.abi.encodeFunctionSignature('updateBridgedTokenMetadata(address,bytes)') +
+              web3.eth.abi.encodeParameters(['address', 'bytes'], [token.address, data]).slice(2)
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(2)
+            expect(events[1].returnValues.data).to.be.equal(updateData)
+          })
+
+          it('should send message with new token URI', async () => {
+            const tokenId = await mintNewERC721()
+
+            await contract.pushTokenURIUpdate(token.address, tokenId, false).should.be.rejected
+            await sendFunctions[0](tokenId)
+            await contract.pushTokenURIUpdate(token.address, tokenId, false)
+
+            const data = token.contract.methods.setTokenURI(tokenId, uriFor(tokenId)).encodeABI()
+            const updateData =
+              web3.eth.abi.encodeFunctionSignature('updateBridgedTokenMetadata(address,bytes)') +
+              web3.eth.abi.encodeParameters(['address', 'bytes'], [token.address, data]).slice(2)
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
+            expect(events.length).to.be.equal(2)
+            expect(events[1].returnValues.data).to.be.equal(updateData)
+          })
+        })
+
+        describe('pull token metadata updates', () => {
+          beforeEach(async () => {
+            const deployData = deployAndHandleBridgedERC721({ tokenId: 1 })
+            expect(await executeMessageCall(exampleMessageId, deployData)).to.be.equal(true)
+            token = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
+          })
+
+          it('pull token owner update', async () => {
+            await contract.pullTokenOwnerUpdate(otherSideToken1).should.be.rejected
+            await contract.pullTokenOwnerUpdate(token.address)
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedInformationRequest' })
+            expect(events.length).to.be.equal(1)
+            expect(events[0].returnValues.selector).to.be.equal(web3.utils.sha3('eth_call(address,bytes)'))
+            const data = token.contract.methods.owner().encodeABI()
+            const requestData = web3.eth.abi.encodeParameters(['address', 'bytes'], [otherSideToken1, data])
+            expect(events[0].returnValues.data).to.be.equal(requestData)
+
+            expect(await token.owner()).to.be.equal(ZERO_ADDRESS)
+            let responseData = web3.eth.abi.encodeParameters(['address'], [accounts[7]])
+            responseData = web3.eth.abi.encodeParameters(['bytes'], [responseData])
+            const messageId = events[0].returnValues.messageId
+            await ambBridgeContract.executeInformationResponse(contract.address, messageId, true, responseData)
+            expect(await token.owner()).to.be.equal(accounts[7])
+          })
+
+          it('pull token URI update', async () => {
+            await contract.pullTokenURIUpdate(otherSideToken1, 1, false).should.be.rejected
+            await contract.pullTokenURIUpdate(token.address, 1, false)
+
+            const events = await getEvents(ambBridgeContract, { event: 'MockedInformationRequest' })
+            expect(events.length).to.be.equal(1)
+            expect(events[0].returnValues.selector).to.be.equal(web3.utils.sha3('eth_call(address,bytes)'))
+            const data = token.contract.methods.tokenURI(1).encodeABI()
+            const requestData = web3.eth.abi.encodeParameters(['address', 'bytes'], [otherSideToken1, data])
+            expect(events[0].returnValues.data).to.be.equal(requestData)
+
+            expect(await token.tokenURI(1)).to.be.equal(uriFor(1))
+            let responseData = web3.eth.abi.encodeParameters(['string'], [uriFor(123)])
+            responseData = web3.eth.abi.encodeParameters(['bytes'], [responseData])
+            const messageId = events[0].returnValues.messageId
+            await ambBridgeContract.executeInformationResponse(contract.address, messageId, true, responseData)
+            expect(await token.tokenURI(1)).to.be.equal(uriFor(123))
+          })
+        })
+      })
+    } else {
+      describe('token metadata updates', () => {
+        beforeEach(async () => {
+          const deployData = deployAndHandleBridgedERC721({ tokenId: 1 })
+          expect(await executeMessageCall(exampleMessageId, deployData)).to.be.equal(true)
+          token = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
+        })
+
+        it('should update owner', async () => {
+          expect(await token.owner()).to.be.equal(ZERO_ADDRESS)
+          const data = token.contract.methods.setOwner(accounts[7]).encodeABI()
+          const updateData = contract.contract.methods.updateBridgedTokenMetadata(otherSideToken1, data).encodeABI()
+
+          expect(await executeMessageCall(failedMessageId, updateData, { messageSender: owner })).to.be.equal(false)
+          expect(await executeMessageCall(exampleMessageId, updateData)).to.be.equal(true)
+
+          expect(await token.owner()).to.be.equal(accounts[7])
+        })
+
+        it('should update token URI', async () => {
+          expect(await token.tokenURI(1)).to.be.equal(uriFor(1))
+          const data = token.contract.methods.setTokenURI(1, uriFor(2)).encodeABI()
+          const updateData = contract.contract.methods.updateBridgedTokenMetadata(otherSideToken1, data).encodeABI()
+
+          expect(await executeMessageCall(failedMessageId, updateData, { messageSender: owner })).to.be.equal(false)
+          expect(await executeMessageCall(exampleMessageId, updateData)).to.be.equal(true)
+
+          expect(await token.tokenURI(1)).to.be.equal(uriFor(2))
         })
       })
     }
