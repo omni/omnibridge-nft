@@ -34,8 +34,7 @@ contract MetadataReader is Ownable {
      * @return name for the token.
      */
     function _readName(address _token) internal view returns (string memory) {
-        (bool status, bytes memory data) = _token.staticcall(abi.encodeWithSelector(IERC721Metadata.name.selector));
-        return status ? abi.decode(data, (string)) : stringStorage[keccak256(abi.encodePacked("customName", _token))];
+        return _readStringOptional(_token, abi.encodeWithSelector(IERC721Metadata.name.selector), "customName");
     }
 
     /**
@@ -45,8 +44,7 @@ contract MetadataReader is Ownable {
      * @return symbol for the token.
      */
     function _readSymbol(address _token) internal view returns (string memory) {
-        (bool status, bytes memory data) = _token.staticcall(abi.encodeWithSelector(IERC721Metadata.symbol.selector));
-        return status ? abi.decode(data, (string)) : stringStorage[keccak256(abi.encodePacked("customSymbol", _token))];
+        return _readStringOptional(_token, abi.encodeWithSelector(IERC721Metadata.symbol.selector), "customSymbol");
     }
 
     /**
@@ -56,9 +54,7 @@ contract MetadataReader is Ownable {
      * @return token URI for the particular token, if any.
      */
     function _readERC721TokenURI(address _token, uint256 _tokenId) internal view returns (string memory) {
-        (bool status, bytes memory data) =
-            _token.staticcall(abi.encodeWithSelector(IERC721Metadata.tokenURI.selector, _tokenId));
-        return status ? abi.decode(data, (string)) : "";
+        return _readStringOptional(_token, abi.encodeWithSelector(IERC721Metadata.tokenURI.selector, _tokenId), "");
     }
 
     /**
@@ -68,8 +64,27 @@ contract MetadataReader is Ownable {
      * @return token URI for the particular token, if any.
      */
     function _readERC1155TokenURI(address _token, uint256 _tokenId) internal view returns (string memory) {
-        (bool status, bytes memory data) =
-            _token.staticcall(abi.encodeWithSelector(IERC1155MetadataURI.uri.selector, _tokenId));
-        return status ? abi.decode(data, (string)) : "";
+        return _readStringOptional(_token, abi.encodeWithSelector(IERC1155MetadataURI.uri.selector, _tokenId), "");
+    }
+
+    /**
+     * @dev Internal function for reading string field from some contract.
+     * @param _contract address of the contract to read string from.
+     * @param _data encoded calldata.
+     * @param _key fallback storage key associated with the default value.
+     */
+    function _readStringOptional(
+        address _contract,
+        bytes memory _data,
+        string memory _key
+    ) internal view returns (string memory) {
+        (bool status, bytes memory data) = _contract.staticcall(_data);
+        if (status) {
+            return abi.decode(data, (string));
+        }
+        if (bytes(_key).length == 0) {
+            return "";
+        }
+        return stringStorage[keccak256(abi.encodePacked(_key, _contract))];
     }
 }

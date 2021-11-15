@@ -4,6 +4,7 @@ pragma abicoder v2;
 
 import "./BasicNFTOmnibridge.sol";
 import "./components/common/GasLimitManager.sol";
+import "../../tokens/ERC1155BridgeToken.sol";
 
 /**
  * @title ForeignNFTOmnibridge
@@ -29,7 +30,7 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         address _owner,
         address _imageERC721,
         address _imageERC1155
-    ) external onlyRelevantSender returns (bool) {
+    ) external onlyRelevantSender {
         require(!isInitialized());
 
         _setBridgeContract(_bridgeContract);
@@ -40,8 +41,31 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         _setTokenImageERC1155(_imageERC1155);
 
         setInitialize();
+    }
 
-        return isInitialized();
+    /**
+     * @dev Function for updating metadata on the bridged token from the other side.
+     * Used for permission-less updates of owner() and token URIs.
+     * @param _token address of the native token from the other side of the bridge.
+     * @param _data calldata for executing on the token contract.
+     */
+    function updateBridgedTokenMetadata(address _token, bytes memory _data) external onlyMediator {
+        require(_data.length >= 4);
+        bytes4 selector;
+        assembly {
+            selector := shl(224, mload(add(_data, 4)))
+        }
+        // we are using this method only for calling setOwner/setTokenURI on the underlying token contract
+        // this check is here to prevent unintentional calls of sensitive methods
+        require(
+            selector != IBurnableMintableERC721Token.mint.selector &&
+                selector != IBurnableMintableERC721Token.burn.selector &&
+                selector != IBurnableMintableERC1155Token.mint.selector &&
+                selector != IBurnableMintableERC1155Token.burn.selector &&
+                selector != ERC1155BridgeToken.setBridgeContract.selector
+        );
+        (bool status, ) = bridgedTokenAddress(_token).call(_data);
+        require(status);
     }
 
     /**

@@ -22,7 +22,7 @@ import "../../tokens/ERC721BridgeToken.sol";
 
 /**
  * @title BasicNFTOmnibridge
- * @dev Commong functionality for multi-token mediator for ERC721 tokens intended to work on top of AMB bridge.
+ * @dev Common functionality for multi-token mediator for ERC721 tokens intended to work on top of AMB bridge.
  */
 abstract contract BasicNFTOmnibridge is
     Initializable,
@@ -337,7 +337,7 @@ abstract contract BasicNFTOmnibridge is
         uint256[] memory _tokenIds,
         uint256[] memory _values
     ) internal override {
-        _releaseTokens(_token, nativeTokenAddress(_token) == address(0), _recipient, _tokenIds, _values);
+        _releaseTokens(_token, isRegisteredAsNativeToken(_token), _recipient, _tokenIds, _values);
     }
 
     /**

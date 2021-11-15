@@ -3,6 +3,13 @@ pragma solidity 0.7.5;
 interface IAMB {
     event UserRequestForAffirmation(bytes32 indexed messageId, bytes encodedData);
     event UserRequestForSignature(bytes32 indexed messageId, bytes encodedData);
+    event UserRequestForInformation(
+        bytes32 indexed messageId,
+        bytes32 indexed requestSelector,
+        address indexed sender,
+        bytes data
+    );
+    event InformationRetrieved(bytes32 indexed messageId, bool status, bool callbackStatus);
     event CollectedSignatures(
         address authorityResponsibleForRelay,
         bytes32 messageHash,
@@ -45,6 +52,8 @@ interface IAMB {
         bytes calldata _data,
         uint256 _gas
     ) external returns (bytes32);
+
+    function requireToGetInformation(bytes32 _requestSelector, bytes calldata _data) external returns (bytes32);
 
     function sourceChainId() external view returns (uint256);
 
