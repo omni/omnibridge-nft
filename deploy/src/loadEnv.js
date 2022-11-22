@@ -61,6 +61,7 @@ switch (BRIDGE_MODE) {
       HOME_FORWARDING_RULES_MANAGER: optionalAddressOrFalseValidator(),
       HOME_TOKEN_NAME_SUFFIX: suffixValidator(),
       FOREIGN_TOKEN_NAME_SUFFIX: suffixValidator(),
+      ERC721_TOKEN_FACTORY: addressValidator(),
     }
     break
   default:

@@ -30,7 +30,8 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
         address _owner,
         address _imageERC721,
         address _imageERC1155,
-        address _forwardingRulesManager
+        address _forwardingRulesManager,
+        address _factoryERC721
     ) external onlyRelevantSender returns (bool) {
         require(!isInitialized());
 
@@ -41,7 +42,8 @@ contract HomeNFTOmnibridge is NFTForwardingRulesConnector, SelectorTokenGasLimit
         _setTokenImageERC721(_imageERC721);
         _setTokenImageERC1155(_imageERC1155);
         _setForwardingRulesManager(_forwardingRulesManager);
-
+        _setTokenFactoryERC721(_factoryERC721);
+        
         setInitialize();
 
         return isInitialized();

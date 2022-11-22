@@ -19,6 +19,8 @@ import "./components/bridged/ERC721TokenProxy.sol";
 import "./components/bridged/ERC1155TokenProxy.sol";
 import "./components/native/NFTMediatorBalanceStorage.sol";
 import "../../tokens/ERC721BridgeToken.sol";
+import "./components/bridged/TokenFactoryStorage.sol";
+import "../../interfaces/IERC721TokenFactory.sol";
 
 /**
  * @title BasicNFTOmnibridge
@@ -37,7 +39,8 @@ abstract contract BasicNFTOmnibridge is
     ERC721Relayer,
     ERC1155Relayer,
     NFTMediatorBalanceStorage,
-    FailedMessagesProcessor
+    FailedMessagesProcessor,
+    TokenFactoryStorage
 {
     using SafeMath for uint256;
 
@@ -85,20 +88,13 @@ abstract contract BasicNFTOmnibridge is
         string[] calldata _tokenURIs
     ) external onlyMediator {
         address bridgedToken = bridgedTokenAddress(_token);
+
         if (bridgedToken == address(0)) {
-            if (bytes(_name).length == 0) {
-                if (bytes(_symbol).length > 0) {
-                    _name = _transformName(_symbol);
-                }
+            if ( _values.length > 0) {
+                bridgedToken = address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)));
             } else {
-                if (bytes(_symbol).length == 0) {
-                    _symbol = _name;
-                }
-                _name = _transformName(_name);
+                bridgedToken = IERC721TokenFactory(tokenFactoryERC721()).deployCollection(_name, _symbol, address(this));
             }
-            bridgedToken = _values.length > 0
-                ? address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)))
-                : address(new ERC721TokenProxy(tokenImageERC721(), _name, _symbol, address(this)));
             _setTokenAddressPair(_token, bridgedToken);
         }
 

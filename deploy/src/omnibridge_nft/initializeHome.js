@@ -2,7 +2,7 @@ const { web3Home, deploymentAddress } = require('../web3')
 const { EternalStorageProxy, HomeNFTOmnibridge } = require('../loadContracts')
 const { sendRawTxHome, transferProxyOwnership } = require('../deploymentUtils')
 
-const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN } = require('../loadEnv')
+const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN, ERC721_TOKEN_FACTORY } = require('../loadEnv')
 
 function initializeMediator({
   contract,
@@ -14,6 +14,7 @@ function initializeMediator({
     tokenImageERC1155,
     gasLimitManager,
     forwardingRulesManager,
+    tokenFactoryERC721,
   },
 }) {
   console.log(`
@@ -23,7 +24,8 @@ function initializeMediator({
     ERC721_TOKEN_IMAGE: ${tokenImageERC721},
     ERC1155_TOKEN_IMAGE: ${tokenImageERC1155},
     GAS_LIMIT_MANAGER: ${gasLimitManager},
-    FORWARDING_RULES_MANAGER: ${forwardingRulesManager}
+    FORWARDING_RULES_MANAGER: ${forwardingRulesManager},
+    ERC721_TOKEN_FACTORY: ${tokenFactoryERC721}
     `)
 
   return contract.methods
@@ -34,7 +36,8 @@ function initializeMediator({
       owner,
       tokenImageERC721,
       tokenImageERC1155,
-      forwardingRulesManager
+      forwardingRulesManager,
+      tokenFactoryERC721
     )
     .encodeABI()
 }
@@ -62,6 +65,7 @@ async function initialize({
       tokenImageERC721,
       tokenImageERC1155,
       forwardingRulesManager,
+      tokenFactoryERC721: ERC721_TOKEN_FACTORY,
     },
   })
 

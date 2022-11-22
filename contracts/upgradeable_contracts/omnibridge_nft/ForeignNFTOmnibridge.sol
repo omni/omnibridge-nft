@@ -28,7 +28,8 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         uint256 _requestGasLimit,
         address _owner,
         address _imageERC721,
-        address _imageERC1155
+        address _imageERC1155,
+        address _factoryERC721
     ) external onlyRelevantSender returns (bool) {
         require(!isInitialized());
 
@@ -38,6 +39,7 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         _setOwner(_owner);
         _setTokenImageERC721(_imageERC721);
         _setTokenImageERC1155(_imageERC1155);
+        _setTokenFactoryERC721(_factoryERC721);
 
         setInitialize();
 
