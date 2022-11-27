@@ -93,7 +93,8 @@ abstract contract BasicNFTOmnibridge is
             if ( _values.length > 0) {
                 bridgedToken = address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)));
             } else {
-                bridgedToken = IERC721TokenFactory(tokenFactoryERC721()).deployCollection(_name, _symbol, address(this));
+                address _factory = tokenFactoryERC721();
+                bridgedToken = IERC721TokenFactory(_factory).deployERC721BridgeContract(_name, _symbol);
             }
             _setTokenAddressPair(_token, bridgedToken);
         }

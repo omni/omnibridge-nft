@@ -24,6 +24,8 @@ contract ERC721TokenProxy is Proxy {
     mapping(uint256 => string) private _tokenURIs;
     string private _baseURI;
     address private bridgeContract;
+    address private _factory;
+
 
     /**
      * @dev Creates an upgradeable token proxy for ERC721BridgeToken.sol, initializes its eternalStorage.
@@ -36,7 +38,8 @@ contract ERC721TokenProxy is Proxy {
         address _tokenImage,
         string memory _name,
         string memory _symbol,
-        address _owner
+        address _owner,
+        address factory_
     ) {
         assembly {
             // EIP 1967
@@ -46,6 +49,7 @@ contract ERC721TokenProxy is Proxy {
         name = _name;
         symbol = _symbol;
         bridgeContract = _owner; // _owner == HomeOmnibridgeNFT/ForeignOmnibridgeNFT mediator
+        _factory = factory_;
     }
 
     /**
