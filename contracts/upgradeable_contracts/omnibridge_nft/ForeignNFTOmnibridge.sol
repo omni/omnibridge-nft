@@ -19,7 +19,6 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
      * @param _mediatorContract the address of the mediator contract on the other network.
      * @param _requestGasLimit the gas limit for the message execution.
      * @param _owner address of the owner of the mediator contract.
-     * @param _imageERC721 address of the ERC721 token image.
      * @param _imageERC1155 address of the ERC1155 token image.
      */
     function initialize(
@@ -27,7 +26,6 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         address _mediatorContract,
         uint256 _requestGasLimit,
         address _owner,
-        address _imageERC721,
         address _imageERC1155,
         address _factoryERC721
     ) external onlyRelevantSender returns (bool) {
@@ -37,7 +35,6 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
         _setMediatorContractOnOtherSide(_mediatorContract);
         _setRequestGasLimit(_requestGasLimit);
         _setOwner(_owner);
-        _setTokenImageERC721(_imageERC721);
         _setTokenImageERC1155(_imageERC1155);
         _setTokenFactoryERC721(_factoryERC721);
 

@@ -5,11 +5,11 @@ const assert = require('assert')
 const {
   web3Home,
   web3Foreign,
-  deploymentAddress,
   GAS_LIMIT_EXTRA,
   HOME_DEPLOYMENT_GAS_PRICE,
   FOREIGN_DEPLOYMENT_GAS_PRICE,
   DEPLOYMENT_ACCOUNT_PRIVATE_KEY,
+  DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
 } = require('./web3')
 
 async function deployContract(contractJson, args, { network, nonce }) {
@@ -37,6 +37,32 @@ async function deployContract(contractJson, args, { network, nonce }) {
   return instance
 }
 
+async function deployContractByFactoryDeploymentAccount(contractJson, args, { network, nonce }) {
+  let web3
+  if (network === 'foreign') {
+    web3 = web3Foreign
+  } else {
+    web3 = web3Home
+  }
+  const instance = new web3.eth.Contract(contractJson.abi)
+  const result = instance
+    .deploy({
+      data: contractJson.bytecode,
+      arguments: args,
+    })
+    .encodeABI()
+  const receipt = await sendTx(network, {
+    data: result,
+    nonce,
+    to: null,
+    privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
+  })
+  instance.options.address = receipt.contractAddress
+  instance.deployedBlockNumber = receipt.blockNumber
+
+  return instance
+}
+
 function sendTx(network, options) {
   return (network === 'foreign' ? sendRawTxForeign : sendRawTxHome)(options)
 }
@@ -57,11 +83,11 @@ async function sendRawTxForeign(options) {
   })
 }
 
-async function sendRawTx({ data, nonce, to, web3, gasPrice, value }) {
+async function sendRawTx({ data, nonce, to, web3, gasPrice, value, privateKey = DEPLOYMENT_ACCOUNT_PRIVATE_KEY }) {
   try {
     const estimatedGas = new BigNumber(
       await web3.eth.estimateGas({
-        from: deploymentAddress,
+        from: web3Home.eth.accounts.privateKeyToAccount(privateKey).address,
         value,
         to,
         data,
@@ -92,7 +118,7 @@ async function sendRawTx({ data, nonce, to, web3, gasPrice, value }) {
     }
 
     const signedTx = await new Promise((res) =>
-      web3.eth.accounts.signTransaction(rawTx, DEPLOYMENT_ACCOUNT_PRIVATE_KEY, (err, signedTx) => res(signedTx))
+      web3.eth.accounts.signTransaction(rawTx, privateKey, (err, signedTx) => res(signedTx))
     )
     const receipt = await web3.eth
       .sendSignedTransaction(signedTx.rawTransaction)
@@ -132,11 +158,12 @@ async function transferProxyOwnership({ proxy, newOwner, nonce, network }) {
   })
 }
 
-async function transferOwnership({ contract, newOwner, nonce, network }) {
+async function transferOwnership({ contract, newOwner, nonce, network, privateKey = DEPLOYMENT_ACCOUNT_PRIVATE_KEY }) {
   await sendTx(network, {
     data: contract.methods.transferOwnership(newOwner).encodeABI(),
     nonce,
     to: contract.options.address,
+    privateKey,
   })
 }
 
@@ -163,4 +190,5 @@ module.exports = {
   transferOwnership,
   setBridgeContract,
   isContract,
+  deployContractByFactoryDeploymentAccount,
 }

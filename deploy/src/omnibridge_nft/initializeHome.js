@@ -2,7 +2,7 @@ const { web3Home, deploymentAddress } = require('../web3')
 const { EternalStorageProxy, HomeNFTOmnibridge } = require('../loadContracts')
 const { sendRawTxHome, transferProxyOwnership } = require('../deploymentUtils')
 
-const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN, ERC721_TOKEN_FACTORY } = require('../loadEnv')
+const { HOME_AMB_BRIDGE, HOME_BRIDGE_OWNER, HOME_UPGRADEABLE_ADMIN } = require('../loadEnv')
 
 function initializeMediator({
   contract,
@@ -10,7 +10,6 @@ function initializeMediator({
     bridgeContract,
     mediatorContract,
     owner,
-    tokenImageERC721,
     tokenImageERC1155,
     gasLimitManager,
     forwardingRulesManager,
@@ -21,7 +20,6 @@ function initializeMediator({
     AMB contract: ${bridgeContract},
     Mediator contract: ${mediatorContract},
     OWNER: ${owner},
-    ERC721_TOKEN_IMAGE: ${tokenImageERC721},
     ERC1155_TOKEN_IMAGE: ${tokenImageERC1155},
     GAS_LIMIT_MANAGER: ${gasLimitManager},
     FORWARDING_RULES_MANAGER: ${forwardingRulesManager},
@@ -34,7 +32,6 @@ function initializeMediator({
       mediatorContract,
       gasLimitManager,
       owner,
-      tokenImageERC721,
       tokenImageERC1155,
       forwardingRulesManager,
       tokenFactoryERC721
@@ -49,6 +46,7 @@ async function initialize({
   tokenImageERC1155,
   forwardingRulesManager,
   gasLimitManager,
+  tokenFactoryERC721,
 }) {
   let nonce = await web3Home.eth.getTransactionCount(deploymentAddress)
   const mediatorContract = new web3Home.eth.Contract(HomeNFTOmnibridge.abi, homeBridge)
@@ -65,7 +63,7 @@ async function initialize({
       tokenImageERC721,
       tokenImageERC1155,
       forwardingRulesManager,
-      tokenFactoryERC721: ERC721_TOKEN_FACTORY,
+      tokenFactoryERC721,
     },
   })
 

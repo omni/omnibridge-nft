@@ -9,6 +9,7 @@ const {
   FOREIGN_EXPLORER_URL,
   HOME_EXPLORER_API_KEY,
   FOREIGN_EXPLORER_API_KEY,
+  DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
 } = env
 
 const homeProvider = new Web3.providers.HttpProvider(HOME_RPC_URL)
@@ -21,6 +22,8 @@ const { HOME_DEPLOYMENT_GAS_PRICE, FOREIGN_DEPLOYMENT_GAS_PRICE } = env
 const GAS_LIMIT_EXTRA = env.DEPLOYMENT_GAS_LIMIT_EXTRA
 
 const deploymentAddress = web3Home.eth.accounts.privateKeyToAccount(DEPLOYMENT_ACCOUNT_PRIVATE_KEY).address
+const deploymentFactoryAddress = web3Home.eth.accounts.privateKeyToAccount(DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY)
+  .address
 
 module.exports = {
   web3Home,
@@ -36,4 +39,6 @@ module.exports = {
   HOME_EXPLORER_API_KEY,
   FOREIGN_EXPLORER_API_KEY,
   DEPLOYMENT_ACCOUNT_PRIVATE_KEY,
+  DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
+  deploymentFactoryAddress,
 }

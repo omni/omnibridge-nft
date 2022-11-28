@@ -14,15 +14,6 @@ contract TokenImageStorage is Ownable {
         0x02e1d283efd236e8b97cefe072f0c863fa2db9f9ba42b0eca53ab31c49067a67; // keccak256(abi.encodePacked("erc1155tokenImageContract"))
 
     /**
-     * @dev Updates address of the used ERC721 token image.
-     * Only owner can call this method.
-     * @param _image address of the new token image.
-     */
-    function setTokenImageERC721(address _image) external onlyOwner {
-        _setTokenImageERC721(_image);
-    }
-
-    /**
      * @dev Updates address of the used ERC1155 token image.
      * Only owner can call this method.
      * @param _image address of the new token image.
@@ -45,15 +36,6 @@ contract TokenImageStorage is Ownable {
      */
     function tokenImageERC1155() public view returns (address) {
         return addressStorage[ERC1155_TOKEN_IMAGE_CONTRACT];
-    }
-
-    /**
-     * @dev Internal function for updating address of the used ERC721 token image.
-     * @param _image address of the new token image.
-     */
-    function _setTokenImageERC721(address _image) internal {
-        require(Address.isContract(_image));
-        addressStorage[ERC721_TOKEN_IMAGE_CONTRACT] = _image;
     }
 
     /**

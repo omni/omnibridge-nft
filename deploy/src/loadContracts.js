@@ -7,4 +7,6 @@ module.exports = {
   ERC1155BridgeToken: require(`../../build/contracts/ERC1155BridgeToken.json`),
   NFTForwardingRulesManager: require(`../../build/contracts/NFTForwardingRulesManager.json`),
   SelectorTokenGasLimitManager: require(`../../build/contracts/SelectorTokenGasLimitManager.json`),
+  ERC721NativeToken: require(`../../build/contracts/ERC721NativeToken.json`),
+  ERC721TokenFactory: require(`../../build/contracts/ERC721TokenFactory.json`),
 }

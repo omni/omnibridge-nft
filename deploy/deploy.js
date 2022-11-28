@@ -13,38 +13,52 @@ function writeDeploymentResults(data) {
 
 async function deployOmnibridgeNFT() {
   const preDeploy = require('./src/omnibridge_nft/preDeploy')
+  const deployFactory = require('./src/omnibridge_nft/factory')
   const deployHome = require('./src/omnibridge_nft/home')
   const deployForeign = require('./src/omnibridge_nft/foreign')
   const initializeHome = require('./src/omnibridge_nft/initializeHome')
   const initializeForeign = require('./src/omnibridge_nft/initializeForeign')
+  const {
+    initializeTokenFactoryForeign,
+    initializeTokenFactoryHome,
+  } = require('./src/omnibridge_nft/initializeFactory')
+
   await preDeploy()
+  const { foreignTokenFactory, homeTokenFactory } = await deployFactory()
   const {
     homeBridgeMediator,
-    tokenImageERC721: homeTokenImageERC721,
     tokenImageERC1155: homeTokenImageERC1155,
     gasLimitManager,
     forwardingRulesManager,
   } = await deployHome()
-  const {
-    foreignBridgeMediator,
-    tokenImageERC721: foreignTokenImageERC721,
-    tokenImageERC1155: foreignTokenImageERC1155,
-  } = await deployForeign()
+  const { foreignBridgeMediator, tokenImageERC1155: foreignTokenImageERC1155 } = await deployForeign()
 
   await initializeHome({
     homeBridge: homeBridgeMediator.address,
     foreignBridge: foreignBridgeMediator.address,
-    tokenImageERC721: homeTokenImageERC721.address,
     tokenImageERC1155: homeTokenImageERC1155.address,
     gasLimitManager: gasLimitManager.address,
     forwardingRulesManager: forwardingRulesManager.address,
+    tokenFactoryERC721: homeTokenFactory.address,
   })
 
   await initializeForeign({
     foreignBridge: foreignBridgeMediator.address,
     homeBridge: homeBridgeMediator.address,
-    tokenImageERC721: foreignTokenImageERC721.address,
     tokenImageERC1155: foreignTokenImageERC1155.address,
+    tokenFactoryERC721: foreignTokenFactory.address,
+  })
+
+  await initializeTokenFactoryForeign({
+    factory: foreignTokenFactory.address,
+    bridge: foreignBridgeMediator.address,
+    oppositeBridge: homeBridgeMediator.address,
+  })
+
+  await initializeTokenFactoryHome({
+    factory: homeTokenFactory.address,
+    bridge: homeBridgeMediator.address,
+    oppositeBridge: foreignBridgeMediator.address,
   })
 
   console.log('\nDeployment has been completed.\n\n')

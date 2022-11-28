@@ -4,7 +4,6 @@ const {
   EternalStorageProxy,
   OwnedUpgradeabilityProxy,
   HomeNFTOmnibridge,
-  ERC721BridgeToken,
   ERC1155BridgeToken,
   NFTForwardingRulesManager,
   SelectorTokenGasLimitManager,
@@ -12,7 +11,6 @@ const {
 const {
   HOME_AMB_BRIDGE,
   HOME_MEDIATOR_REQUEST_GAS_LIMIT,
-  HOME_ERC721_TOKEN_IMAGE,
   HOME_ERC1155_TOKEN_IMAGE,
   HOME_FORWARDING_RULES_MANAGER,
   HOME_TOKEN_NAME_SUFFIX,
@@ -49,18 +47,6 @@ async function deployHome() {
     nonce: nonce++,
   })
   console.log('[Home] Bridge Mediator Storage: ', homeBridgeStorage.options.address)
-
-  let tokenImageERC721 = HOME_ERC721_TOKEN_IMAGE
-  if (!tokenImageERC721) {
-    console.log('\n[Home] Deploying new ERC721 token image')
-    const image = await deployContract(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
-      nonce: nonce++,
-    })
-    tokenImageERC721 = image.options.address
-    console.log('\n[Home] New ERC721 token image has been deployed: ', tokenImageERC721)
-  } else {
-    console.log('\n[Home] Using existing ERC721 token image: ', tokenImageERC721)
-  }
 
   let tokenImageERC1155 = HOME_ERC1155_TOKEN_IMAGE
   if (!tokenImageERC1155) {
@@ -120,7 +106,6 @@ async function deployHome() {
   console.log('\nHome part of OMNIBRIDGE_NFT has been deployed\n')
   return {
     homeBridgeMediator: { address: homeBridgeStorage.options.address },
-    tokenImageERC721: { address: tokenImageERC721 },
     tokenImageERC1155: { address: tokenImageERC1155 },
     gasLimitManager: { address: gasLimitManager.options.address },
     forwardingRulesManager: { address: forwardingRulesManager },

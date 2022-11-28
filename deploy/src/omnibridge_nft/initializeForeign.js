@@ -7,44 +7,26 @@ const {
   FOREIGN_UPGRADEABLE_ADMIN,
   FOREIGN_AMB_BRIDGE,
   FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT,
-  ERC721_TOKEN_FACTORY,
 } = require('../loadEnv')
 
 function initializeMediator({
   contract,
-  params: {
-    bridgeContract,
-    mediatorContract,
-    requestGasLimit,
-    owner,
-    tokenImageERC721,
-    tokenImageERC1155,
-    tokenFactoryERC721,
-  },
+  params: { bridgeContract, mediatorContract, requestGasLimit, owner, tokenImageERC1155, tokenFactoryERC721 },
 }) {
   console.log(`
     AMB contract: ${bridgeContract},
     Mediator contract: ${mediatorContract},
     MEDIATOR_REQUEST_GAS_LIMIT : ${requestGasLimit},
     OWNER: ${owner},
-    ERC721_TOKEN_IMAGE: ${tokenImageERC721},
     ERC1155_TOKEN_IMAGE: ${tokenImageERC1155},
     ERC721_TOKEN_FACTORY: ${tokenFactoryERC721}`)
 
   return contract.methods
-    .initialize(
-      bridgeContract,
-      mediatorContract,
-      requestGasLimit,
-      owner,
-      tokenImageERC721,
-      tokenImageERC1155,
-      tokenFactoryERC721
-    )
+    .initialize(bridgeContract, mediatorContract, requestGasLimit, owner, tokenImageERC1155, tokenFactoryERC721)
     .encodeABI()
 }
 
-async function initialize({ homeBridge, foreignBridge, tokenImageERC721, tokenImageERC1155 }) {
+async function initialize({ homeBridge, foreignBridge, tokenImageERC1155, tokenFactoryERC721 }) {
   let nonce = await web3Foreign.eth.getTransactionCount(deploymentAddress)
   const contract = new web3Foreign.eth.Contract(ForeignNFTOmnibridge.abi, foreignBridge)
 
@@ -57,9 +39,8 @@ async function initialize({ homeBridge, foreignBridge, tokenImageERC721, tokenIm
       mediatorContract: homeBridge,
       requestGasLimit: FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT,
       owner: FOREIGN_BRIDGE_OWNER,
-      tokenImageERC721,
       tokenImageERC1155,
-      tokenFactoryERC721: ERC721_TOKEN_FACTORY,
+      tokenFactoryERC721,
     },
   })
 

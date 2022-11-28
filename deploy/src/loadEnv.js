@@ -54,14 +54,19 @@ switch (BRIDGE_MODE) {
       FOREIGN_AMB_BRIDGE: addressValidator(),
       HOME_MEDIATOR_REQUEST_GAS_LIMIT: bigNumValidator(),
       FOREIGN_MEDIATOR_REQUEST_GAS_LIMIT: bigNumValidator(),
-      HOME_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       HOME_ERC1155_TOKEN_IMAGE: optionalAddressValidator(),
-      FOREIGN_ERC721_TOKEN_IMAGE: optionalAddressValidator(),
       FOREIGN_ERC1155_TOKEN_IMAGE: optionalAddressValidator(),
       HOME_FORWARDING_RULES_MANAGER: optionalAddressOrFalseValidator(),
       HOME_TOKEN_NAME_SUFFIX: suffixValidator(),
       FOREIGN_TOKEN_NAME_SUFFIX: suffixValidator(),
-      ERC721_TOKEN_FACTORY: addressValidator(),
+      DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY: envalid.str(),
+      FOREIGN_ERC721_NATIVE_TOKEN_IMAGE: optionalAddressValidator(),
+      FOREIGN_ERC721_BRIDGE_TOKEN_IMAGE: optionalAddressValidator(),
+      ERC721_TOKEN_FACTORY: optionalAddressValidator(),
+      HOME_ERC721_NATIVE_TOKEN_IMAGE: optionalAddressValidator(),
+      HOME_ERC721_BRIDGE_TOKEN_IMAGE: optionalAddressValidator(),
+      HOME_TOKEN_FACTORY_OWNER: addressValidator(),
+      FOREIGN_TOKEN_FACTORY_OWNER: addressValidator(),
     }
     break
   default:
