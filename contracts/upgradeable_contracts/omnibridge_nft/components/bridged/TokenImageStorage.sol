@@ -23,14 +23,6 @@ contract TokenImageStorage is Ownable {
     }
 
     /**
-     * @dev Tells the address of the used ERC721 token image.
-     * @return address of the used token image.
-     */
-    function tokenImageERC721() public view returns (address) {
-        return addressStorage[ERC721_TOKEN_IMAGE_CONTRACT];
-    }
-
-    /**
      * @dev Tells the address of the used ERC1155 token image.
      * @return address of the used token image.
      */
