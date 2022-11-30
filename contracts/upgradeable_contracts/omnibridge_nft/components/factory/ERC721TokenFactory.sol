@@ -1,10 +1,13 @@
 pragma solidity 0.7.5;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+
 import "../bridged/ERC721TokenProxy.sol";
 import "../../../../tokens/ERC721BridgeToken.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract ERC721TokenFactory is Ownable {
+  using Counters for Counters.Counter;
 
   event ERC721NativeContractCreated(address indexed _collection);
   event ERC721BridgeContractCreated(address indexed _collection);
@@ -13,6 +16,7 @@ contract ERC721TokenFactory is Ownable {
   address private _erc721NativeImage;
   address private _bridge;
   address private _oppositeBridge;
+  Counters.Counter private _idCounter;
 
   modifier onlyBridge() {
     require(msg.sender == _bridge);
@@ -61,17 +65,19 @@ contract ERC721TokenFactory is Ownable {
 
   function deployERC721BridgeContract(
     string memory _name,
-    string memory _symbol
+    string memory _symbol,
+    uint256 _collectionId
   ) external onlyBridge returns(address) {
     require(_erc721BridgeImage != address(0));
 
-    bytes32 _salt = keccak256(abi.encodePacked(_name, _symbol));
+    bytes32 _salt = keccak256(abi.encodePacked(_collectionId));
     address collection = address(new ERC721TokenProxy{salt: _salt}(
       _erc721BridgeImage,
       _name,
       _symbol,
       _bridge,
-      address(this)
+      address(this),
+      _collectionId
     ));
 
     emit ERC721BridgeContractCreated(collection);
@@ -83,13 +89,18 @@ contract ERC721TokenFactory is Ownable {
     string memory _symbol
   ) external onlyOwner returns(address) {
     require(_erc721BridgeImage != address(0));
-    bytes32 _salt = keccak256(abi.encodePacked(_name, _symbol));
+
+    uint256 _collectionId = _idCounter.current();
+    _idCounter.increment();
+
+    bytes32 _salt = keccak256(abi.encodePacked(_collectionId));
     address collection = address(new ERC721TokenProxy{salt: _salt}(
       _erc721NativeImage,
       _name,
       _symbol,
       _oppositeBridge,
-      address(this)
+      address(this),
+      _collectionId
     ));
 
     emit ERC721NativeContractCreated(collection);

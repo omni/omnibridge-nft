@@ -4,6 +4,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Metadata.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155MetadataURI.sol";
 import "../../../Ownable.sol";
+import "../../../../interfaces/IGUERC721Metadata.sol";
 
 /**
  * @title MetadataReader
@@ -47,6 +48,12 @@ contract MetadataReader is Ownable {
     function _readSymbol(address _token) internal view returns (string memory) {
         (bool status, bytes memory data) = _token.staticcall(abi.encodeWithSelector(IERC721Metadata.symbol.selector));
         return status ? abi.decode(data, (string)) : stringStorage[keccak256(abi.encodePacked("customSymbol", _token))];
+    }
+
+    function _readId(address _token) internal view returns (uint256) {
+        (bool status, bytes memory data) = _token.staticcall(abi.encodeWithSelector(IGUERC721Metadata.id.selector));
+
+        return status ? abi.decode(data, (uint256)) : 0;
     }
 
     /**

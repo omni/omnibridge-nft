@@ -22,7 +22,7 @@ async function deployFactory() {
   let foreignNativeTokenImageERC721 = FOREIGN_ERC721_NATIVE_TOKEN_IMAGE
   if (!foreignNativeTokenImageERC721) {
     console.log('\n[Foreign] Deploying new ERC721 native token image')
-    const nativeImage = await deployContractByFactoryDeploymentAccount(ERC721NativeToken, ['', '', ZERO_ADDRESS], {
+    const nativeImage = await deployContractByFactoryDeploymentAccount(ERC721NativeToken, ['', '', ZERO_ADDRESS, 0], {
       network: 'foreign',
       nonce: nonceForeign++,
     })
@@ -35,7 +35,7 @@ async function deployFactory() {
   let homeBridgeTokenImageERC721 = HOME_ERC721_BRIDGE_TOKEN_IMAGE
   if (!homeBridgeTokenImageERC721) {
     console.log('\n[Home] Deploying new ERC721 bridge token image')
-    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
+    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS, 0], {
       network: 'home',
       nonce: nonceHome++,
     })
@@ -53,7 +53,7 @@ async function deployFactory() {
   let foreignBridgeTokenImageERC721 = FOREIGN_ERC721_BRIDGE_TOKEN_IMAGE
   if (!foreignBridgeTokenImageERC721) {
     console.log('\n[Foreign] Deploying new ERC721 bridge token image')
-    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
+    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS, 0], {
       network: 'foreign',
       nonce: nonceForeign++,
     })
@@ -66,7 +66,7 @@ async function deployFactory() {
   let homeNativeTokenImageERC721 = HOME_ERC721_NATIVE_TOKEN_IMAGE
   if (!homeNativeTokenImageERC721) {
     console.log('\n[Home] Deploying new ERC721 native token image')
-    const nativeImage = await deployContractByFactoryDeploymentAccount(ERC721NativeToken, ['', '', ZERO_ADDRESS], {
+    const nativeImage = await deployContractByFactoryDeploymentAccount(ERC721NativeToken, ['', '', ZERO_ADDRESS, 0], {
       network: 'home',
       nonce: nonceHome++,
     })

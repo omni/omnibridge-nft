@@ -11,13 +11,20 @@ import "../interfaces/IBurnableMintableERC721Token.sol";
 contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
     address public bridgeContract;
     address public _factory;
+    uint256 private _id;
 
     constructor(
         string memory _name,
         string memory _symbol,
-        address _bridgeContract
+        address _bridgeContract,
+        uint256 id_
     ) ERC721(_name, _symbol) {
         bridgeContract = _bridgeContract;
+        _id = id_;
+    }
+
+    function id() public view returns(uint256) {
+        return _id;
     }
 
     /**

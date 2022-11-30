@@ -6,13 +6,20 @@ import "../interfaces/IOwnable.sol";
 contract ERC721NativeToken is ERC721 {
     address private bridgeContract;
     address private _factory;
+    uint256 private _id;
 
     constructor(
         string memory _name,
         string memory _symbol,
-        address factory_
+        address factory_,
+        uint256 id_
     ) ERC721(_name, _symbol) {
         _factory = factory_;
+        _id = id_;
+    }
+
+    function id() public view returns(uint256) {
+        return _id;
     }
 
     modifier onlyFactory() {
