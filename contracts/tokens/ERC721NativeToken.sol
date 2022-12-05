@@ -36,12 +36,36 @@ contract ERC721NativeToken is ERC721 {
         return _factory;
     }
 
-    function mint(address _to, uint256 _tokenId) external onlyOwner {
+    function mint(address _to, uint256 _tokenId, string memory _uri) external onlyOwner {
         _safeMint(_to, _tokenId);
+        _setTokenURI(_tokenId, _uri);
     }
 
     function setTokenFactory(address factory_) external onlyOwner {
         require(_factory != address(0));
         _factory = factory_;
-    }    
+    }
+
+    /**
+     * @dev Tells if this contract implements the interface defined by
+     * `interfaceId`. See the corresponding EIP165.
+     * @return true, if interface is implemented.
+     */
+    function supportsInterface(bytes4 interfaceId) public view override(ERC165) returns (bool) {
+        bytes4 INTERFACE_ID_ERC165 = 0x01ffc9a7;
+        bytes4 INTERFACE_ID_ERC721 = 0x80ac58cd;
+        bytes4 INTERFACE_ID_ERC721_METADATA = 0x5b5e139f;
+        bytes4 INTERFACE_ID_ERC721_ENUMERABLE = 0x780e9d63;
+        return
+            interfaceId == INTERFACE_ID_ERC165 ||
+            interfaceId == INTERFACE_ID_ERC721 ||
+            interfaceId == INTERFACE_ID_ERC721_METADATA ||
+            interfaceId == INTERFACE_ID_ERC721_ENUMERABLE;
+    }
+
+    /**
+     * @dev Stub for preventing unneeded storage writes.
+     * All supported interfaces are hardcoded in the supportsInterface function.
+     */
+    function _registerInterface(bytes4) internal override {}
 }
