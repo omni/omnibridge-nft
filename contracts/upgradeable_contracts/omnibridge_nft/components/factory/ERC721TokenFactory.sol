@@ -66,7 +66,8 @@ contract ERC721TokenFactory is Ownable {
   function deployERC721BridgeContract(
     string memory _name,
     string memory _symbol,
-    uint256 _collectionId
+    uint256 _collectionId,
+    address owner_
   ) external onlyBridge returns(address) {
     require(_erc721BridgeImage != address(0));
 
@@ -77,7 +78,8 @@ contract ERC721TokenFactory is Ownable {
       _symbol,
       _bridge,
       address(this),
-      _collectionId
+      _collectionId,
+      owner_
     ));
 
     emit ERC721BridgeContractCreated(collection);
@@ -87,7 +89,7 @@ contract ERC721TokenFactory is Ownable {
   function deployERC721NativeContract(
     string memory _name,
     string memory _symbol
-  ) external onlyOwner returns(address) {
+  ) external returns(address) {
     require(_erc721BridgeImage != address(0));
 
     uint256 _collectionId = _idCounter.current();
@@ -100,7 +102,8 @@ contract ERC721TokenFactory is Ownable {
       _symbol,
       _oppositeBridge,
       address(this),
-      _collectionId
+      _collectionId,
+      msg.sender
     ));
 
     emit ERC721NativeContractCreated(collection);

@@ -86,7 +86,8 @@ abstract contract BasicNFTOmnibridge is
         uint256[] calldata _tokenIds,
         uint256[] calldata _values,
         string[] calldata _tokenURIs,
-        uint256 _id
+        uint256 _id,
+        address owner_
     ) external onlyMediator {
         address bridgedToken = bridgedTokenAddress(_token);
 
@@ -95,7 +96,7 @@ abstract contract BasicNFTOmnibridge is
                 bridgedToken = address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)));
             } else {
                 address _factory = tokenFactoryERC721();
-                bridgedToken = IERC721TokenFactory(_factory).deployERC721BridgeContract(_name, _symbol, _id);
+                bridgedToken = IERC721TokenFactory(_factory).deployERC721BridgeContract(_name, _symbol, _id, owner_);
             }
             _setTokenAddressPair(_token, bridgedToken);
         }
@@ -298,6 +299,7 @@ abstract contract BasicNFTOmnibridge is
             string memory name = _readName(_token);
             string memory symbol = _readSymbol(_token);
             uint256 _id = _readId(_token);
+            address _owner = _readOwner(_token);
 
             return
                 abi.encodeWithSelector(
@@ -309,7 +311,8 @@ abstract contract BasicNFTOmnibridge is
                     _tokenIds,
                     _values,
                     tokenURIs,
-                    _id
+                    _id,
+                    _owner
                 );
         }
 

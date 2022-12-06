@@ -7,15 +7,12 @@ contract ERC721NativeToken is ERC721 {
     address private bridgeContract;
     address private _factory;
     uint256 private _id;
-
+    address private _owner;
+    
     constructor(
         string memory _name,
-        string memory _symbol,
-        address factory_,
-        uint256 id_
+        string memory _symbol
     ) ERC721(_name, _symbol) {
-        _factory = factory_;
-        _id = id_;
     }
 
     function id() public view returns(uint256) {
@@ -27,9 +24,18 @@ contract ERC721NativeToken is ERC721 {
         _;
     } 
 
-    modifier onlyOwner() {
+    modifier onlyFactoryOwner() {
         require(msg.sender == IOwnable(_factory).owner());
         _;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == _owner);
+        _;
+    }
+
+    function owner() public view returns (address) {
+        return _owner;
     }
 
     function factory () public view returns (address) {
@@ -41,7 +47,7 @@ contract ERC721NativeToken is ERC721 {
         _setTokenURI(_tokenId, _uri);
     }
 
-    function setTokenFactory(address factory_) external onlyOwner {
+    function setTokenFactory(address factory_) external onlyFactoryOwner {
         require(_factory != address(0));
         _factory = factory_;
     }
