@@ -237,7 +237,7 @@ abstract contract BasicNFTOmnibridge is
 
         bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, _values);
 
-        bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
+        bytes32 _messageId = _passMessage(data, false);
 
         _recordBridgeOperation(_messageId, _token, _from, _tokenIds, _values);
     }
