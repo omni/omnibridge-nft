@@ -95,6 +95,7 @@ abstract contract BasicNFTOmnibridge is
             if ( _values.length > 0) {
                 bridgedToken = address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)));
             } else {
+                require(_isDeployBridgedNFTAllowed(owner_), "GUBridge: Not allow sender deploy bridge collection");
                 address _factory = tokenFactoryERC721();
                 bridgedToken = IERC721TokenFactory(_factory).deployERC721BridgeContract(_name, _symbol, _id, owner_);
             }
@@ -473,5 +474,12 @@ abstract contract BasicNFTOmnibridge is
             mstore(result, add(mload(_name), size))
         }
         return result;
+    }
+
+    function _isDeployBridgedNFTAllowed(
+        address _owner
+    ) internal view virtual returns (bool) {
+        (_owner);
+        return true;
     }
 }

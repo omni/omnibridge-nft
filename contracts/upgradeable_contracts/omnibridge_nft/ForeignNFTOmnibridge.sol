@@ -54,4 +54,10 @@ contract ForeignNFTOmnibridge is BasicNFTOmnibridge, GasLimitManager {
 
         return bridgeContract().requireToPassMessage(mediatorContractOnOtherSide(), _data, requestGasLimit());
     }
+
+    function _isDeployBridgedNFTAllowed(
+        address _owner
+    ) internal view override returns (bool) {
+       return tx.origin == _owner;
+    }
 }
