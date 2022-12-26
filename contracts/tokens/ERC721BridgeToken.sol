@@ -16,8 +16,10 @@ contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
 
     constructor(
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        address _bridgeContract
     ) ERC721(_name, _symbol) {
+        bridgeContract = _bridgeContract;
     }
 
     function id() public view returns(uint256) {
