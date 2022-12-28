@@ -32,7 +32,6 @@ const failedMessageId = '0x2ebc2ccc755acc8eaf9252e19573af708d644ab63a39619adb080
 function runTests(accounts, isHome) {
   const Mediator = isHome ? HomeNFTOmnibridge : ForeignNFTOmnibridge
   const SUFFIX = ' on Testnet'
-  const modifyName = (name) => name + SUFFIX
   const uriFor = (tokenId) => `https://example.com/${tokenId}`
   const otherSideMediator = '0x1e33FBB006F47F78704c954555a5c52C2A7f409D'
   const otherSideToken1 = '0xAfb77d544aFc1e2aD3dEEAa20F3c80859E7Fc3C9'
@@ -1183,6 +1182,53 @@ function runTests(accounts, isHome) {
 
             expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
           })
+
+          it('Should deploy new bridge token same address with the source address', async () => {
+            // prepare message from source chain
+            // transaction must same nonce
+            // const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
+            // const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST')
+            // const tokenFactoryERC721 = await ERC721TokenFactory.new(
+            //   tokenBridgeImageERC721.address,
+            //   tokenNativeImageERC721.address
+            // )
+            // const bridge = await Mediator.new(SUFFIX)
+            // await tokenFactoryERC721.setBridge(bridge.address)
+            // await tokenFactoryERC721.setOppositeBridge(contract.address)
+            // await tokenFactoryERC721.deployERC721NativeContract('TEST', 'TST')
+            // const event = await getEvents(tokenFactoryERC721, { event: 'ERC721NativeContractCreated' })
+            // expect(event.length).to.be.equal(1)
+            // // eslint-disable-next-line no-underscore-dangle
+            // const erc721NativeTokenAddress = event[0].returnValues._collection // 0xFe0f201c0ba898D181a06E87Da2FeB10bEd3c53a
+
+            const computeCreate2AddrSourceChain = '0xFe0f201c0ba898D181a06E87Da2FeB10bEd3c53a'
+            const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST')
+            const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
+            const tokenFactoryERC721 = await ERC721TokenFactory.new(
+              tokenBridgeImageERC721.address,
+              tokenNativeImageERC721.address
+            )
+            const bridge = await Mediator.new(SUFFIX)
+            await tokenFactoryERC721.setBridge(contract.address)
+            await tokenFactoryERC721.setOppositeBridge(bridge.address)
+            await contract.setTokenFactoryERC721(tokenFactoryERC721.address)
+            const data = deployAndHandleBridgedERC721({
+              name: 'TEST',
+              symbol: 'TST',
+              token: computeCreate2AddrSourceChain,
+              tokenId: 1,
+              receiver: owner,
+              id: 0,
+              owner,
+            })
+            // execute message
+            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
+            const events = await getEvents(contract, { event: 'NewTokenRegistered' })
+            expect(events.length).to.be.equal(1)
+            const { nativeToken, bridgedToken } = events[0].returnValues
+            expect(nativeToken).to.eql(computeCreate2AddrSourceChain)
+            expect(bridgedToken).to.eql(computeCreate2AddrSourceChain)
+          })
         })
 
         describe('handleBridgedNFT', () => {
@@ -1828,7 +1874,7 @@ function runTests(accounts, isHome) {
     })
 
     if (isHome) {
-      describe.only('oracle driven lane permissions', () => {
+      describe('oracle driven lane permissions', () => {
         let manager
         beforeEach(async () => {
           const proxy = await OwnedUpgradeabilityProxy.new()
@@ -1897,7 +1943,7 @@ function runTests(accounts, isHome) {
           expect(await manager.destinationLane(token.address, user, user)).to.be.bignumber.equal('1')
         })
 
-        it.only('should send a message to the manual lane', async () => {
+        it('should send a message to the manual lane', async () => {
           const tokenId1 = await mintNewERC721()
           const tokenId2 = await mintNewERC721()
           const tokenId3 = await mintNewERC721()
