@@ -1,6 +1,8 @@
 const { web3Foreign, deploymentFactoryAddress, web3Home } = require('../web3')
 const { deployContractByFactoryDeploymentAccount } = require('../deploymentUtils')
 const { ERC721NativeToken, ERC721BridgeToken, ERC721TokenFactory } = require('../loadContracts')
+const { ZERO_ADDRESS } = require('../constants')
+
 const {
   FOREIGN_ERC721_NATIVE_TOKEN_IMAGE,
   FOREIGN_ERC721_BRIDGE_TOKEN_IMAGE,
@@ -34,7 +36,7 @@ async function deployFactory() {
   let homeBridgeTokenImageERC721 = HOME_ERC721_BRIDGE_TOKEN_IMAGE
   if (!homeBridgeTokenImageERC721) {
     console.log('\n[Home] Deploying new ERC721 bridge token image')
-    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', ''], {
+    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
       network: 'home',
       nonce: nonceHome++,
     })
@@ -52,7 +54,7 @@ async function deployFactory() {
   let foreignBridgeTokenImageERC721 = FOREIGN_ERC721_BRIDGE_TOKEN_IMAGE
   if (!foreignBridgeTokenImageERC721) {
     console.log('\n[Foreign] Deploying new ERC721 bridge token image')
-    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', ''], {
+    const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
       network: 'foreign',
       nonce: nonceForeign++,
     })
