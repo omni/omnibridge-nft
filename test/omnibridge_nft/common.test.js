@@ -47,6 +47,7 @@ function runTests(accounts, isHome) {
   const owner = accounts[0]
   const user = accounts[1]
   const user2 = accounts[2]
+  const user3 = accounts[3]
 
   const mintNewERC721 = (() => {
     let tokenId = 100
@@ -1184,50 +1185,145 @@ function runTests(accounts, isHome) {
           })
 
           it('Should deploy new bridge token same address with the source address', async () => {
-            // prepare message from source chain
-            // transaction must same nonce
-            // const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
-            // const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST')
+            // Prepare message from source chain transaction must same nonce
+            // Must be deploy same address token factory with CREATE opcodes => need to new user
+            // WARNING: don't remove comment, it's code prepare for source chain data
+
+            // const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner, { from: user3 })
+            // expect(tokenBridgeImageERC721.address).to.eql('0x9Ad61E35f8309aF944136283157FABCc5AD371E5')
+            // const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST', { from: user3 })
+            // expect(tokenNativeImageERC721.address).to.eql('0xc0bAC7B9a8c62778bBBad8BB859FDb8E9eA6203A')
+
             // const tokenFactoryERC721 = await ERC721TokenFactory.new(
             //   tokenBridgeImageERC721.address,
-            //   tokenNativeImageERC721.address
+            //   tokenNativeImageERC721.address,
+            //   {
+            //     from: user3,
+            //   }
             // )
-            // const bridge = await Mediator.new(SUFFIX)
-            // await tokenFactoryERC721.setBridge(bridge.address)
-            // await tokenFactoryERC721.setOppositeBridge(contract.address)
+            // expect(tokenFactoryERC721.address).to.eql('0x47115d34326e88AAD58066d8E4d033676fC1aBAe')
+            // const bridge = '0x32cF26d114e5cCEc96B0666185d72a2F32D6A685'
+            // const oppositeBridge = await Mediator.new(SUFFIX, { from: user3 })
+            // expect(oppositeBridge.address).to.eql('0x32cF26d114e5cCEc96B0666185d72a2F32D6A685')
+            // await tokenFactoryERC721.transferOwnership(owner, { from: user3 })
+            // await tokenFactoryERC721.setBridge(bridge)
+            // await tokenFactoryERC721.setOppositeBridge(oppositeBridge.address)
             // await tokenFactoryERC721.deployERC721NativeContract('TEST', 'TST')
             // const event = await getEvents(tokenFactoryERC721, { event: 'ERC721NativeContractCreated' })
             // expect(event.length).to.be.equal(1)
             // // eslint-disable-next-line no-underscore-dangle
-            // const erc721NativeTokenAddress = event[0].returnValues._collection // 0xFe0f201c0ba898D181a06E87Da2FeB10bEd3c53a
+            // const erc721NativeTokenAddress = event[0].returnValues._collection
+            // expect(erc721NativeTokenAddress).to.eql('0x09b10De1FC384E08e11a7f2352ece78Df30F9bde')
+            // Execute at opposite chain
+            const computeCreate2AddrSourceChain = '0x09b10De1FC384E08e11a7f2352ece78Df30F9bde'
+            // CREATE opcode same address
+            const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST', { from: user3 })
+            expect(tokenNativeImageERC721.address).to.eql('0x9Ad61E35f8309aF944136283157FABCc5AD371E5')
+            const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner, { from: user3 })
+            expect(tokenBridgeImageERC721.address).to.eql('0xc0bAC7B9a8c62778bBBad8BB859FDb8E9eA6203A')
 
-            const computeCreate2AddrSourceChain = '0xFe0f201c0ba898D181a06E87Da2FeB10bEd3c53a'
-            const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST')
-            const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
             const tokenFactoryERC721 = await ERC721TokenFactory.new(
               tokenBridgeImageERC721.address,
-              tokenNativeImageERC721.address
+              tokenNativeImageERC721.address,
+              {
+                from: user3,
+              }
             )
-            const bridge = await Mediator.new(SUFFIX)
-            await tokenFactoryERC721.setBridge(contract.address)
-            await tokenFactoryERC721.setOppositeBridge(bridge.address)
-            await contract.setTokenFactoryERC721(tokenFactoryERC721.address)
-            const data = deployAndHandleBridgedERC721({
-              name: 'TEST',
-              symbol: 'TST',
-              token: computeCreate2AddrSourceChain,
-              tokenId: 1,
-              receiver: owner,
-              id: 0,
-              owner,
-            })
+            expect(tokenFactoryERC721.address).to.eql('0x47115d34326e88AAD58066d8E4d033676fC1aBAe')
+
+            const oppositeBridge = '0x32cF26d114e5cCEc96B0666185d72a2F32D6A685'
+            const bridge = await Mediator.new(SUFFIX, { from: user3 })
+            expect(bridge.address).to.eql('0x32cF26d114e5cCEc96B0666185d72a2F32D6A685')
+
+            await tokenFactoryERC721.transferOwnership(owner, { from: user3 })
+            await tokenFactoryERC721.setBridge(bridge.address)
+            await tokenFactoryERC721.setOppositeBridge(oppositeBridge)
+
+            if (isHome) {
+              await bridge.initialize(
+                ambBridgeContract.address,
+                otherSideMediator,
+                ZERO_ADDRESS,
+                owner,
+                tokenImageERC1155.address,
+                ZERO_ADDRESS,
+                tokenFactoryERC721.address
+              ).should.be.fulfilled
+            } else {
+              await bridge.initialize(
+                ambBridgeContract.address,
+                otherSideMediator,
+                1000000,
+                owner,
+                tokenImageERC1155.address,
+                tokenFactoryERC721.address
+              ).should.be.fulfilled
+            }
+            const data = bridge.contract.methods
+              .deployAndHandleBridgedNFT(
+                computeCreate2AddrSourceChain,
+                'TEST',
+                'TST',
+                user,
+                [1],
+                [],
+                [uriFor(1)],
+                0,
+                owner
+              )
+              .encodeABI()
             // execute message
-            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
-            const events = await getEvents(contract, { event: 'NewTokenRegistered' })
+            expect(await executeMessageCall(exampleMessageId, data, { executor: bridge.address })).to.be.equal(true)
+            const events = await getEvents(bridge, { event: 'NewTokenRegistered' })
             expect(events.length).to.be.equal(1)
             const { nativeToken, bridgedToken } = events[0].returnValues
             expect(nativeToken).to.eql(computeCreate2AddrSourceChain)
             expect(bridgedToken).to.eql(computeCreate2AddrSourceChain)
+          })
+
+          it('should allow owner of source contract deploy ERC721 bridge contract', async () => {
+            if (!isHome) {
+              const data = deployAndHandleBridgedERC721({
+                tokenId: 1,
+              })
+              expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
+              const events = await getEvents(contract, { event: 'NewTokenRegistered' })
+              expect(events.length).to.be.equal(1)
+              const { nativeToken, bridgedToken } = events[0].returnValues
+              expect(nativeToken).to.be.equal(otherSideToken1)
+              const deployedToken = await ERC721BridgeToken.at(bridgedToken)
+              const deployedTokenProxy = await ERC721TokenProxy.at(bridgedToken)
+
+              expect(await deployedToken.name()).to.be.equal('Test')
+              const v1 = await deployedToken.getTokenInterfacesVersion()
+              const v2 = await deployedTokenProxy.getTokenProxyInterfacesVersion()
+              expect(v1.major).to.be.bignumber.gte(ZERO)
+              expect(v2.major).to.be.bignumber.gte(ZERO)
+              expect(await deployedToken.symbol()).to.be.equal('TST')
+              expect(await contract.nativeTokenAddress(bridgedToken)).to.be.equal(nativeToken)
+              expect(await contract.bridgedTokenAddress(nativeToken)).to.be.equal(bridgedToken)
+              expect(await deployedToken.ownerOf(1)).to.be.bignumber.equal(user)
+              expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
+              expect(await deployedToken.tokenURI(1)).to.be.equal(uriFor(1))
+
+              const event = await getEvents(contract, { event: 'TokensBridged' })
+              expect(event.length).to.be.equal(1)
+              expect(event[0].returnValues.token).to.be.equal(deployedToken.address)
+              expect(event[0].returnValues.recipient).to.be.equal(user)
+              expect(event[0].returnValues.tokenIds).to.be.eql(['1'])
+              expect(event[0].returnValues.values).to.be.eql([])
+              expect(event[0].returnValues.messageId).to.be.equal(exampleMessageId)
+            }
+          })
+
+          it("shouldn't allow owner of source contract deploy ERC721 bridge contract", async () => {
+            if (!isHome) {
+              const data = deployAndHandleBridgedERC721({
+                tokenId: 1,
+                owner: user,
+              })
+              expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(false)
+            }
           })
         })
 
