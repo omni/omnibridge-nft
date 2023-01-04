@@ -5,7 +5,7 @@ async function run({ home, foreign, users, owner, findMessageId }) {
   const foreignBridgedToken = await foreign.getBridgedTokenERC721(home.erc721Token)
 
   async function waitUntilFailedThenFix(receipt, token, tokenId) {
-    const status = await foreign.waitUntilProcessed(receipt)
+    const status = await foreign.executeManually(receipt)
     assert.ok(!status, 'Message should have been failed')
     const messageId = findMessageId(receipt)
 
