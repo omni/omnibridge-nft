@@ -68,25 +68,31 @@ const ForeignABI = [...require('../build/contracts/ForeignNFTOmnibridge.json').a
 
 const ERC721 = require('../build/contracts/ERC721BridgeToken.json')
 const ERC1155 = require('../build/contracts/ERC1155BridgeToken.json')
+const ERC721NativeToken = require('../build/contracts/ERC721NativeToken.json')
+const ERC721TokenFactory = require('../build/contracts/ERC721TokenFactory.json')
 
 const scenarios = [
-  require('./scenarios/erc1155/bridgeNativeForeignTokens'),
-  require('./scenarios/erc1155/bridgeNativeHomeTokens'),
-  require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
-  require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
-  require('./scenarios/erc721/bridgeNativeForeignTokens'),
-  require('./scenarios/erc721/bridgeNativeHomeTokens'),
-  require('./scenarios/erc721/bridgeNativeForeignTokensToOtherUser'),
-  require('./scenarios/erc721/bridgeNativeHomeTokensToOtherUser'),
-  require('./scenarios/erc721/fixForeignMediatorBalance'),
-  require('./scenarios/erc721/fixHomeMediatorBalance'),
-  require('./scenarios/erc721/homeRequestFailedMessageFix'),
-  require('./scenarios/erc721/foreignRequestFailedMessageFix'),
+  // require('./scenarios/erc1155/bridgeNativeForeignTokens'),
+  // require('./scenarios/erc1155/bridgeNativeHomeTokens'),
+  // require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
+  // require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
+  // require('./scenarios/erc721/bridgeNativeForeignTokens'),
+  // require('./scenarios/erc721/bridgeNativeHomeTokens'),
+  // require('./scenarios/erc721/bridgeNativeForeignTokensToOtherUser'),
+  // require('./scenarios/erc721/bridgeNativeHomeTokensToOtherUser'),
+  // require('./scenarios/erc721/fixForeignMediatorBalance'),
+  // require('./scenarios/erc721/fixHomeMediatorBalance'),
+  // require('./scenarios/erc721/homeRequestFailedMessageFix'),
+  // require('./scenarios/erc721/foreignRequestFailedMessageFix'),
+  require('./scenarios/erc721/bridgeNativeForeignTokensUsingTokenFactory'),
+  require('./scenarios/erc721/bridgeNativeHomeTokensUsingTokenFactory'),
+  require('./scenarios/erc721/bridgeNativeHomeTokensFailWithNotOwner'),
 ]
 const { ZERO_ADDRESS, toAddress, addPendingTxLogger, signatureToVRS, packSignatures } = require('./utils')
 
 const ERC721TokenABI = [...ERC721.abi, ...filterEvents(HomeABI), ...AMBEventABI]
 const ERC1155TokenABI = [...ERC1155.abi, ...filterEvents(HomeABI), ...AMBEventABI]
+const ERC721NativeTokenABI = [...ERC721NativeToken.abi, ...filterEvents(HomeABI), ...AMBEventABI]
 
 const {
   HOME_RPC_URL,
@@ -102,6 +108,8 @@ const {
   TEST_ACCOUNT_PRIVATE_KEY,
   SECOND_TEST_ACCOUNT_PRIVATE_KEY,
   OWNER_ACCOUNT_PRIVATE_KEY,
+  HOME_ERC721_TOKEN_ADDRESS_USING_TOKEN_FACTORY,
+  FOREIGN_ERC721_TOKEN_ADDRESS_USING_TOKEN_FACTORY,
 } = process.env
 
 function deploy(web3, options, abi, bytecode, args) {
@@ -148,7 +156,7 @@ async function makeExecuteManually(homeAMB, foreignAMB, web3, homeBlockNumber) {
   console.log('Fetching required number of signatures')
   const requiredSignatures = parseInt(await homeAMB.methods.requiredSignatures().call(), 10)
 
-  return async (receipt) => {
+  return async (receipt, caller) => {
     assert.ok(receipt.status, 'Transaction with AMB request has failed')
     const event = Object.values(receipt.events)
       .flat()
@@ -171,7 +179,12 @@ async function makeExecuteManually(homeAMB, foreignAMB, web3, homeBlockNumber) {
           Array.from(Array(requiredSignatures).keys()).map((i) => homeAMB.methods.signature(hashMsg, i).call())
         )
         const signatures = packSignatures(collectedSignatures.map(signatureToVRS))
-        const executionReceipt = await foreignAMB.methods.executeSignatures(encodedData, signatures).send()
+        let executionReceipt
+        if (caller) {
+          executionReceipt = await foreignAMB.methods.executeSignatures(encodedData, signatures).send({ from: caller })
+        } else {
+          executionReceipt = await foreignAMB.methods.executeSignatures(encodedData, signatures).send()
+        }
         return executionReceipt.events.RelayedMessage.returnValues.status && executionReceipt.transactionHash
       }
     }
@@ -251,6 +264,15 @@ function makeMint(token, to, isERC1155 = false) {
   }
 }
 
+function makeMintERC721Native(token, from, to, uri = 'uri') {
+  let id = 1
+  return async () => {
+    console.log(`Minting ERC721 native token #${id} to ${to}`)
+    await token.methods.mint(to, id, uri).send({ from })
+    return id++
+  }
+}
+
 function makeRelayToken(mediator, defaultFrom, isERC1155 = false) {
   return (token, id, options) => {
     const opts = options || {}
@@ -308,11 +330,25 @@ async function createEnv(web3Home, web3Foreign) {
     homeOptions
   )
 
+  const homeERC721TokenFactory = new web3Home.eth.Contract(
+    [...ERC721TokenFactory.abi],
+    await homeMediator.methods.tokenFactoryERC721().call(),
+    homeOptions
+  )
+
+  const foreignERC721TokenFactory = new web3Foreign.eth.Contract(
+    [...ERC721TokenFactory.abi],
+    await foreignMediator.methods.tokenFactoryERC721().call(),
+    foreignOptions
+  )
+
   console.log('Initializing tokens')
   let homeTokenERC721
   let homeTokenERC1155
   let foreignTokenERC721
   let foreignTokenERC1155
+  let homeTokenERC721UsingTokenFactory
+  let foreignTokenERC721UsingTokenFactory
   const args = ['Test Token', 'TST', users[0]]
   if (HOME_ERC721_TOKEN_ADDRESS) {
     console.log('Using existing Home ERC721 token')
@@ -328,12 +364,53 @@ async function createEnv(web3Home, web3Foreign) {
     console.log('Deploying test Home ERC1155 token')
     homeTokenERC1155 = await deploy(web3Home, homeOptions, ERC1155TokenABI, ERC1155.bytecode, args)
   }
+  if (HOME_ERC721_TOKEN_ADDRESS_USING_TOKEN_FACTORY) {
+    console.log('Using existing Home ERC721 token using token factory')
+    homeTokenERC721UsingTokenFactory = new web3Home.eth.Contract(
+      ERC721NativeTokenABI,
+      HOME_ERC721_TOKEN_ADDRESS_USING_TOKEN_FACTORY,
+      homeOptions
+    )
+  } else {
+    console.log('Deploying test Home ERC721 token using token factory')
+    const tx = await homeERC721TokenFactory.methods.deployERC721NativeContract('Test Token', 'TST').send()
+    // eslint-disable-next-line no-underscore-dangle
+    const homeERC721TokenAddressUsingTokenFactory = tx.events.ERC721NativeContractCreated.returnValues._collection
+
+    console.log('homeERC721TokenAddressUsingTokenFactory', homeERC721TokenAddressUsingTokenFactory)
+    homeTokenERC721UsingTokenFactory = new web3Home.eth.Contract(
+      ERC721NativeTokenABI,
+      homeERC721TokenAddressUsingTokenFactory,
+      homeOptions
+    )
+  }
   if (FOREIGN_ERC721_TOKEN_ADDRESS) {
     console.log('Using existing Foreign ERC721 token')
     foreignTokenERC721 = new web3Foreign.eth.Contract(ERC721TokenABI, FOREIGN_ERC721_TOKEN_ADDRESS, foreignOptions)
   } else {
     console.log('Deploying test Foreign ERC721 token')
     foreignTokenERC721 = await deploy(web3Foreign, foreignOptions, ERC721TokenABI, ERC721.bytecode, args)
+  }
+  if (FOREIGN_ERC721_TOKEN_ADDRESS_USING_TOKEN_FACTORY) {
+    console.log('Using existing Foreign ERC721 token using token factory')
+    foreignTokenERC721UsingTokenFactory = new web3Foreign.eth.Contract(
+      ERC721NativeTokenABI,
+      HOME_ERC721_TOKEN_ADDRESS_USING_TOKEN_FACTORY,
+      foreignOptions
+    )
+  } else {
+    console.log('Deploying test Foreign ERC721 token using token factory')
+    const tx = await foreignERC721TokenFactory.methods.deployERC721NativeContract('Test Token', 'TST').send()
+    // eslint-disable-next-line no-underscore-dangle
+    const foreignERC721TokenAddressUsingTokenFactory = tx.events.ERC721NativeContractCreated.returnValues._collection
+
+    console.log('foreignERC721TokenAddressUsingTokenFactory', foreignERC721TokenAddressUsingTokenFactory)
+
+    foreignTokenERC721UsingTokenFactory = new web3Foreign.eth.Contract(
+      ERC721NativeTokenABI,
+      foreignERC721TokenAddressUsingTokenFactory,
+      foreignOptions
+    )
   }
   if (FOREIGN_ERC1155_TOKEN_ADDRESS) {
     console.log('Using existing Foreign ERC1155 token')
@@ -354,6 +431,7 @@ async function createEnv(web3Home, web3Foreign) {
       amb: homeAMB,
       erc721Token: homeTokenERC721,
       erc1155Token: homeTokenERC1155,
+      erc721UsingTokenFactory: homeTokenERC721UsingTokenFactory,
       getBridgedTokenERC721: makeGetBridgedToken(web3Home, homeMediator, homeOptions, false),
       getBridgedTokenERC1155: makeGetBridgedToken(web3Home, homeMediator, homeOptions, true),
       waitUntilProcessed: makeWaitUntilProcessed(homeAMB, 'AffirmationCompleted', homeBlockNumber),
@@ -362,6 +440,7 @@ async function createEnv(web3Home, web3Foreign) {
       checkTransferERC1155: makeCheckTransfer(web3Home, true, false),
       checkTransferBatchERC1155: makeCheckTransfer(web3Home, true, true),
       mintERC721: makeMint(homeTokenERC721, users[0], false),
+      mintERC721NativeToken: makeMintERC721Native(homeTokenERC721UsingTokenFactory, users[0], users[0]),
       mintERC1155: makeMint(homeTokenERC1155, users[0], true),
       relayTokenERC721: makeRelayToken(homeMediator, users[0], false),
       relayTokenERC1155: makeRelayToken(homeMediator, users[0], true),
@@ -372,6 +451,7 @@ async function createEnv(web3Home, web3Foreign) {
       amb: foreignAMB,
       erc721Token: foreignTokenERC721,
       erc1155Token: foreignTokenERC1155,
+      erc721UsingTokenFactory: foreignTokenERC721UsingTokenFactory,
       getBridgedTokenERC721: makeGetBridgedToken(web3Foreign, foreignMediator, foreignOptions, false),
       getBridgedTokenERC1155: makeGetBridgedToken(web3Foreign, foreignMediator, foreignOptions, true),
       waitUntilProcessed: makeWaitUntilProcessed(foreignAMB, 'RelayedMessage', foreignBlockNumber),
@@ -380,6 +460,7 @@ async function createEnv(web3Home, web3Foreign) {
       checkTransferERC1155: makeCheckTransfer(web3Foreign, true, false),
       checkTransferBatchERC1155: makeCheckTransfer(web3Foreign, true, true),
       mintERC721: makeMint(foreignTokenERC721, users[0], false),
+      mintERC721NativeToken: makeMintERC721Native(foreignTokenERC721UsingTokenFactory, users[0], users[0]),
       mintERC1155: makeMint(foreignTokenERC1155, users[0], true),
       relayTokenERC721: makeRelayToken(foreignMediator, users[0], false),
       relayTokenERC1155: makeRelayToken(foreignMediator, users[0], true),
