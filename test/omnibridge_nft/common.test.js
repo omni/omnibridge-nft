@@ -648,6 +648,13 @@ function runTests(accounts, isHome) {
             })
           }
 
+          it('should not relay tokens not belong to token factory', async () => {
+            const token = await ERC721BridgeToken.new('TEST', 'TST', owner)
+
+            const transfer = token.methods['safeTransferFrom(address,address,uint256,bytes)']
+            await transfer(owner, contract.address, 1, '0x').should.be.rejected
+          })
+
           it('should respect global bridging restrictions', async () => {
             await contract.disableTokenBridging(ZERO_ADDRESS, true).should.be.fulfilled
             for (const send of sendFunctions) {
