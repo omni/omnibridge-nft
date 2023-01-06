@@ -28,7 +28,7 @@ async function run({ foreign, home, users }) {
 }
 
 module.exports = {
-  name: 'Bridging of native Home ERC721 tokens in both directions',
+  name: 'Bridging of native Home ERC721 tokens issued by token factory in both directions',
   shouldRun: () => true,
   run,
 }

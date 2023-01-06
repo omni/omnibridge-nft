@@ -76,17 +76,25 @@ const scenarios = [
   // require('./scenarios/erc1155/bridgeNativeHomeTokens'),
   // require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
   // require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
+
+  // WARNING: case not issues by token factory disable for now
   // require('./scenarios/erc721/bridgeNativeForeignTokens'),
   // require('./scenarios/erc721/bridgeNativeHomeTokens'),
   // require('./scenarios/erc721/bridgeNativeForeignTokensToOtherUser'),
   // require('./scenarios/erc721/bridgeNativeHomeTokensToOtherUser'),
-  // require('./scenarios/erc721/fixForeignMediatorBalance'),
-  // require('./scenarios/erc721/fixHomeMediatorBalance'),
-  // require('./scenarios/erc721/homeRequestFailedMessageFix'),
-  // require('./scenarios/erc721/foreignRequestFailedMessageFix'),
-  require('./scenarios/erc721/bridgeNativeForeignTokensUsingTokenFactory'),
-  require('./scenarios/erc721/bridgeNativeHomeTokensUsingTokenFactory'),
+
+  // NOTE: do not modify order
+  // bridgeNativeHomeTokensFailWithNotOwner must ranked above bridgeNativeHomeTokensUsingTokenFactory
   require('./scenarios/erc721/bridgeNativeHomeTokensFailWithNotOwner'),
+  require('./scenarios/erc721/bridgeNativeHomeTokensUsingTokenFactory'),
+  require('./scenarios/erc721/bridgeNativeForeignTokensUsingTokenFactory'),
+  require('./scenarios/erc721/bridgeNativeForeignTokensUsingTokenFactoryToOtherUser'),
+  require('./scenarios/erc721/bridgeNativeHomeTokensUsingTokenFactoryToOtherUser'),
+
+  require('./scenarios/erc721/fixForeignMediatorBalance'),
+  require('./scenarios/erc721/fixHomeMediatorBalance'),
+  require('./scenarios/erc721/homeRequestFailedMessageFix'),
+  require('./scenarios/erc721/foreignRequestFailedMessageFix'),
 ]
 const { ZERO_ADDRESS, toAddress, addPendingTxLogger, signatureToVRS, packSignatures } = require('./utils')
 
