@@ -1,6 +1,7 @@
-const { web3Foreign, web3Home, DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY, deploymentFactoryAddress } = require('../web3')
-const { sendRawTxForeign, sendRawTxHome } = require('../deploymentUtils')
-const { ERC721TokenFactory } = require('../loadContracts')
+const { web3Foreign, web3Home, deploymentFactoryAddress, DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY } = require('../web3')
+const { sendRawTxForeign, sendRawTxHome, transferProxyOwnership } = require('../deploymentUtils')
+const { ERC721TokenFactory, EternalStorageProxy } = require('../loadContracts')
+const { FOREIGN_UPGRADEABLE_ADMIN, HOME_UPGRADEABLE_ADMIN } = require('../loadEnv')
 
 function initializeERC721TokenFactory({
   contract,
@@ -41,6 +42,16 @@ async function initializeForeign({ factory, erc721BridgeImage, erc721NativeImage
     to: factory,
     privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
   })
+
+  console.log('\n[Foreign] Transferring erc721 token factory proxy ownership to upgradeability admin')
+  const proxy = new web3Foreign.eth.Contract(EternalStorageProxy.abi, factory)
+  await transferProxyOwnership({
+    network: 'foreign',
+    proxy,
+    newOwner: FOREIGN_UPGRADEABLE_ADMIN,
+    nonce: nonce++,
+    privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
+  })
 }
 
 async function initializeHome({ factory, erc721BridgeImage, erc721NativeImage, bridge, oppositeBridge }) {
@@ -64,6 +75,16 @@ async function initializeHome({ factory, erc721BridgeImage, erc721NativeImage, b
     data: initializeData,
     nonce: nonce++,
     to: factory,
+    privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
+  })
+
+  console.log('\n[Home] Transferring erc721 token factory proxy ownership to upgradeability admin')
+  const proxy = new web3Home.eth.Contract(EternalStorageProxy.abi, factory)
+  await transferProxyOwnership({
+    network: 'home',
+    proxy,
+    newOwner: HOME_UPGRADEABLE_ADMIN,
+    nonce: nonce++,
     privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
   })
 }

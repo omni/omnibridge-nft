@@ -151,11 +151,12 @@ async function upgradeProxyAndCall({ proxy, implementationAddress, version, data
   })
 }
 
-async function transferProxyOwnership({ proxy, newOwner, nonce, network }) {
+async function transferProxyOwnership({ proxy, newOwner, nonce, network, privateKey }) {
   await sendTx(network, {
     data: proxy.methods.transferProxyOwnership(newOwner).encodeABI(),
     nonce,
     to: proxy.options.address,
+    privateKey,
   })
 }
 
