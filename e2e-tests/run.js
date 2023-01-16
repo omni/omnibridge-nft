@@ -323,7 +323,6 @@ async function createEnv(web3Home, web3Foreign) {
   const homeMediator = new web3Home.eth.Contract(HomeABI, HOME_MEDIATOR_ADDRESS, homeOptions)
   const foreignMediator = new web3Foreign.eth.Contract(ForeignABI, FOREIGN_MEDIATOR_ADDRESS, foreignOptions)
 
-  console.log('Initializing AMB contracts')
   const foreignAMB = new web3Foreign.eth.Contract(
     [...AMBABI, ...FOREIGNAMBABI],
     await foreignMediator.methods.bridgeContract().call(),

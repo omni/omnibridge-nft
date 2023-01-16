@@ -134,11 +134,12 @@ async function sendRawTx({ data, nonce, to, web3, gasPrice, value, privateKey = 
   return null
 }
 
-async function upgradeProxy({ proxy, implementationAddress, version, nonce, network }) {
+async function upgradeProxy({ proxy, implementationAddress, version, nonce, network, privateKey }) {
   await sendTx(network, {
     data: proxy.methods.upgradeTo(version, implementationAddress).encodeABI(),
     nonce,
     to: proxy.options.address,
+    privateKey,
   })
 }
 
