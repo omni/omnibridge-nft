@@ -16,7 +16,7 @@ async function deployFactory() {
   let nonceFactoryForeign = await web3Foreign.eth.getTransactionCount(deploymentFactoryAddress)
   let nonceForeign = await web3Foreign.eth.getTransactionCount(deploymentAddress)
   let nonceFactoryHome = await web3Home.eth.getTransactionCount(deploymentFactoryAddress)
-  let nonceHome = await web3Foreign.eth.getTransactionCount(deploymentAddress)
+  let nonceHome = await web3Home.eth.getTransactionCount(deploymentAddress)
 
   if (nonceFactoryForeign !== nonceFactoryHome) {
     throw new Error(`nonceFactoryForeign ${nonceFactoryForeign} should equals  ${nonceFactoryHome}`)
