@@ -271,9 +271,16 @@ function makeMint(token, to, isERC1155 = false) {
 
 function makeMintERC721Native(token, from, to, uri = 'uri') {
   let id = 1
+  let currentToken
+
   return async () => {
+    if (currentToken !== token) {
+      currentToken = token
+      id = 1
+    }
+
     console.log(`Minting ERC721 native token #${id} to ${to}`)
-    await token.methods.mint(to, id, uri).send({ from })
+    await token.methods.mint(to, uri).send({ from })
     return id++
   }
 }
