@@ -1232,9 +1232,9 @@ function runTests(accounts, isHome) {
             // expect(event.length).to.be.equal(1)
             // // eslint-disable-next-line no-underscore-dangle
             // const erc721NativeTokenAddress = event[0].returnValues._collection
-            // expect(erc721NativeTokenAddress).to.eql('0x21AEdf17b48EbEBd11bC9503a68B93401b96DE85')
+            // expect(erc721NativeTokenAddress).to.eql('0x2E56870889CBa2837c234408634d02a502A488D8')
             // Execute at opposite chain
-            const computeCreate2AddrSourceChain = '0x21AEdf17b48EbEBd11bC9503a68B93401b96DE85'
+            const computeCreate2AddrSourceChain = '0x2E56870889CBa2837c234408634d02a502A488D8'
             // CREATE opcode same address
             const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST', { from: user3 })
             expect(tokenNativeImageERC721.address).to.eql('0x9Ad61E35f8309aF944136283157FABCc5AD371E5')
@@ -1246,7 +1246,6 @@ function runTests(accounts, isHome) {
             expect(tokenFactoryERC721.address).to.eql('0x47115d34326e88AAD58066d8E4d033676fC1aBAe')
             const oppositeBridge = '0x32cF26d114e5cCEc96B0666185d72a2F32D6A685'
             const bridge = await Mediator.new(SUFFIX, { from: user3 })
-
             await tokenFactoryERC721.initialize(
               tokenBridgeImageERC721.address,
               tokenNativeImageERC721.address,

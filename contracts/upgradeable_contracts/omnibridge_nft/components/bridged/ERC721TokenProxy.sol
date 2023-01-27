@@ -1,7 +1,6 @@
 pragma solidity 0.7.5;
 
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
 import "../../../../upgradeability/Proxy.sol";
 import "../../../../interfaces/IOwnable.sol";
@@ -11,8 +10,6 @@ import "../../../../interfaces/IOwnable.sol";
  * @dev Helps to reduces the size of the deployed bytecode for automatically created tokens, by using a proxy contract.
  */
 contract ERC721TokenProxy is Proxy {
-    using Counters for Counters.Counter;
-
     // storage layout is copied from ERC721BridgeToken.sol
     mapping(bytes4 => bool) private _supportedInterfaces;
     mapping(address => uint256) private _holderTokens;
@@ -31,7 +28,7 @@ contract ERC721TokenProxy is Proxy {
     address private _factory;
     uint256 private _id;
     address private _owner;
-    Counters.Counter private _tokenIdCounter;
+    uint256 private _tokenIdCounter;
 
     constructor(
         address _tokenImage,
