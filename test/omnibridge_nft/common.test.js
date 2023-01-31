@@ -52,8 +52,7 @@ function runTests(accounts, isHome) {
   const mintNewERC721 = (() => {
     let tokenId = 100
     return async () => {
-      await token.mint(user, tokenId)
-      await token.setTokenURI(tokenId, uriFor(tokenId))
+      await token.mint(user, tokenId, uriFor(tokenId))
       return tokenId++
     }
   })()
@@ -221,6 +220,15 @@ function runTests(accounts, isHome) {
     },
   ]
 
+  async function deployERC721NativeToken() {
+    await tokenFactoryERC721.deployERC721NativeContract('TEST', 'TST')
+    const event = await getEvents(tokenFactoryERC721, { event: 'ERC721NativeContractCreated' })
+    // eslint-disable-next-line no-underscore-dangle
+    const collection = event[event.length - 1].returnValues._collection
+
+    return ERC721NativeToken.at(collection)
+  }
+
   before(async () => {
     tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
     tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST')
@@ -231,9 +239,9 @@ function runTests(accounts, isHome) {
   beforeEach(async () => {
     contract = await Mediator.new(SUFFIX)
     ambBridgeContract = await AMBMock.new()
-    token = await ERC721BridgeToken.new('TEST', 'TST', owner)
     await tokenFactoryERC721.setBridge(contract.address)
     await tokenFactoryERC721.setOppositeBridge(contract.address)
+    token = await deployERC721NativeToken()
   })
 
   describe('getBridgeMode', () => {
@@ -640,21 +648,11 @@ function runTests(accounts, isHome) {
             })
           }
 
-          it('should relay tokens with missing metadata', async () => {
-            const token = await NFTWithoutMetadata.new()
+          it('should not relay tokens not belong to token factory', async () => {
+            const token = await ERC721BridgeToken.new('TEST', 'TST', owner)
 
             const transfer = token.methods['safeTransferFrom(address,address,uint256,bytes)']
-            await transfer(owner, contract.address, 1, '0x').should.be.fulfilled
-
-            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-            expect(events.length).to.be.equal(1)
-
-            const { data } = events[0].returnValues
-            expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
-            const args = web3.eth.abi.decodeParameters(['address', 'string', 'string'], data.slice(10))
-            expect(args[0]).to.be.equal(token.address)
-            expect(args[1]).to.be.equal('')
-            expect(args[2]).to.be.equal('')
+            await transfer(owner, contract.address, 1, '0x').should.be.rejected
           })
 
           it('should respect global bridging restrictions', async () => {

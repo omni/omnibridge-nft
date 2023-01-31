@@ -72,16 +72,13 @@ const ERC721NativeToken = require('../build/contracts/ERC721NativeToken.json')
 const ERC721TokenFactory = require('../build/contracts/ERC721TokenFactory.json')
 
 const scenarios = [
-  // require('./scenarios/erc1155/bridgeNativeForeignTokens'),
-  // require('./scenarios/erc1155/bridgeNativeHomeTokens'),
-  // require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
-  // require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
+  require('./scenarios/erc1155/bridgeNativeForeignTokens'),
+  require('./scenarios/erc1155/bridgeNativeHomeTokens'),
+  require('./scenarios/erc1155/bridgeNativeForeignTokensToOtherUser'),
+  require('./scenarios/erc1155/bridgeNativeHomeTokensToOtherUser'),
 
-  // WARNING: case not issues by token factory disable for now
-  // require('./scenarios/erc721/bridgeNativeForeignTokens'),
-  // require('./scenarios/erc721/bridgeNativeHomeTokens'),
-  // require('./scenarios/erc721/bridgeNativeForeignTokensToOtherUser'),
-  // require('./scenarios/erc721/bridgeNativeHomeTokensToOtherUser'),
+  require('./scenarios/erc721/bridgeNativeForeignTokens'),
+  require('./scenarios/erc721/bridgeNativeHomeTokens'),
 
   // NOTE: do not modify order
   // bridgeNativeHomeTokensFailWithNotOwner must ranked above bridgeNativeHomeTokensUsingTokenFactory

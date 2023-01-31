@@ -18,6 +18,8 @@ contract ERC721TokenFactory is Ownable {
   address private _oppositeBridge;
   Counters.Counter private _idCounter;
 
+  mapping (uint256 => address) private nativeTokens;
+
   modifier onlyBridge() {
     require(msg.sender == _bridge);
     _;
@@ -30,7 +32,7 @@ contract ERC721TokenFactory is Ownable {
     _erc721NativeImage = erc721NativeImage_;
   }
 
-  function erc721BridgeImage() view public returns (address) {
+  function erc721BridgeImage() public view returns (address) {
     return _erc721BridgeImage;
   }
 
@@ -38,7 +40,7 @@ contract ERC721TokenFactory is Ownable {
     _erc721BridgeImage = erc721BridgeImage_;
   }
 
-  function erc721NativeImage() view public returns (address) {
+  function erc721NativeImage() public view returns (address) {
     return _erc721NativeImage;
   }
 
@@ -46,7 +48,7 @@ contract ERC721TokenFactory is Ownable {
     _erc721NativeImage = erc721NativeImage_;
   }
 
-  function bridge() view public returns (address) {
+  function bridge() public view returns (address) {
     return _bridge;
   }
 
@@ -54,7 +56,7 @@ contract ERC721TokenFactory is Ownable {
     _bridge = bridge_;
   }
 
-  function oppositeBridge() view public returns (address) {
+  function oppositeBridge() public view returns (address) {
     return _oppositeBridge;
   }
 
@@ -62,6 +64,9 @@ contract ERC721TokenFactory is Ownable {
     _oppositeBridge = oppositeBridge_;
   }
 
+  function nativeTokenOf(uint256 id_) public view returns (address) {
+    return nativeTokens[id_];
+  }
 
   function deployERC721BridgeContract(
     string memory _name,
@@ -106,6 +111,7 @@ contract ERC721TokenFactory is Ownable {
       msg.sender
     ));
 
+    nativeTokens[_collectionId] = collection;
     emit ERC721NativeContractCreated(collection);
     return collection;
   }

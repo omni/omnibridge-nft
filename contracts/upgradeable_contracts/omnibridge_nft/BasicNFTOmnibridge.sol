@@ -302,6 +302,7 @@ abstract contract BasicNFTOmnibridge is
             uint256 _id = _readId(_token);
             address _owner = _readOwner(_token);
 
+            require(_isIssueByFactory(_token, _id, _values.length > 0), "GUBridge: Token must issued by factory able to bridge");
             return
                 abi.encodeWithSelector(
                     this.deployAndHandleBridgedNFT.selector,
@@ -481,5 +482,16 @@ abstract contract BasicNFTOmnibridge is
     ) internal view virtual returns (bool) {
         (_owner);
         return true;
+    }
+
+    function _isIssueByFactory(address _token, uint256 _id, bool _isERC1155) internal view virtual returns (bool) {
+        // skip if erc1155
+        if (_isERC1155) {
+            return true;
+        }
+        address _factory = tokenFactoryERC721();
+        address nativeToken = IERC721TokenFactory(_factory).nativeTokenOf(_id);
+
+        return nativeToken == _token;
     }
 }
