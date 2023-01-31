@@ -1,6 +1,7 @@
 pragma solidity 0.7.5;
 
 import "@openzeppelin/contracts/utils/Address.sol";
+
 import "../../../../upgradeability/Proxy.sol";
 import "../../../../interfaces/IOwnable.sol";
 
@@ -27,6 +28,7 @@ contract ERC721TokenProxy is Proxy {
     address private _factory;
     uint256 private _id;
     address private _owner;
+    uint256 private _tokenIdCounter;
 
     constructor(
         address _tokenImage,

@@ -7,7 +7,7 @@ const { expect } = require('chai')
 const { getEvents } = require('../helpers/helpers')
 const { ZERO_ADDRESS } = require('../setup')
 
-contract.only('ERC721TokenFactory', (accounts) => {
+contract('ERC721TokenFactory', (accounts) => {
   let tokenFactoryERC721
   let tokenBridgeImageERC721
   let tokenNativeImageERC721
@@ -160,7 +160,7 @@ contract.only('ERC721TokenFactory', (accounts) => {
         const event = await getEvents(tokenFactoryERC721, { event: 'ERC721BridgeContractCreated' })
         // eslint-disable-next-line no-underscore-dangle
         const collection = event[event.length - 1].returnValues._collection
-        expect(collection).not.to.empty()
+        expect(collection).to.not.equal(undefined)
       })
 
       it('should not allow not bridge deploy bridged contract', async () => {
