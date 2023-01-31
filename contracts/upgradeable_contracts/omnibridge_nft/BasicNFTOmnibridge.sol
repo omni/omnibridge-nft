@@ -238,6 +238,8 @@ abstract contract BasicNFTOmnibridge is
 
         bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, _values);
 
+        // By default _isOracleDrivenLaneAllowed(_token, _from, _receiver) always return true that mean oracle will automatically executeSignature that mint/unlock NFT on the foreign so oracle will pay a transaction fee. If we set false oracle will skip that so user can claim that
+        // bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
         bytes32 _messageId = _passMessage(data, false);
 
         _recordBridgeOperation(_messageId, _token, _from, _tokenIds, _values);
