@@ -1,6 +1,6 @@
-const { web3Foreign, deploymentFactoryAddress, web3Home } = require('../web3')
-const { deployContractByFactoryDeploymentAccount } = require('../deploymentUtils')
-const { ERC721NativeToken, ERC721BridgeToken, ERC721TokenFactory } = require('../loadContracts')
+const { web3Foreign, deploymentFactoryAddress, web3Home, deploymentAddress } = require('../web3')
+const { deployContractByFactoryDeploymentAccount, deployContract, upgradeProxy } = require('../deploymentUtils')
+const { ERC721NativeToken, ERC721BridgeToken, ERC721TokenFactory, EternalStorageProxy } = require('../loadContracts')
 const { ZERO_ADDRESS } = require('../constants')
 
 const {
@@ -9,14 +9,17 @@ const {
   HOME_ERC721_NATIVE_TOKEN_IMAGE,
   HOME_ERC721_BRIDGE_TOKEN_IMAGE,
   ERC721_TOKEN_FACTORY,
+  DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
 } = require('../loadEnv')
 
 async function deployFactory() {
-  let nonceForeign = await web3Foreign.eth.getTransactionCount(deploymentFactoryAddress)
-  let nonceHome = await web3Home.eth.getTransactionCount(deploymentFactoryAddress)
+  let nonceFactoryForeign = await web3Foreign.eth.getTransactionCount(deploymentFactoryAddress)
+  let nonceForeign = await web3Foreign.eth.getTransactionCount(deploymentAddress)
+  let nonceFactoryHome = await web3Home.eth.getTransactionCount(deploymentFactoryAddress)
+  let nonceHome = await web3Home.eth.getTransactionCount(deploymentAddress)
 
-  if (nonceForeign !== nonceHome) {
-    throw new Error(`nonceForeign ${nonceForeign} should equals  ${nonceHome}`)
+  if (nonceFactoryForeign !== nonceFactoryHome) {
+    throw new Error(`nonceFactoryForeign ${nonceFactoryForeign} should equals  ${nonceFactoryHome}`)
   }
 
   // 1
@@ -25,7 +28,7 @@ async function deployFactory() {
     console.log('\n[Foreign] Deploying new ERC721 native token image')
     const nativeImage = await deployContractByFactoryDeploymentAccount(ERC721NativeToken, ['', ''], {
       network: 'foreign',
-      nonce: nonceForeign++,
+      nonce: nonceFactoryForeign++,
     })
     foreignNativeTokenImageERC721 = nativeImage.options.address
     console.log('\n[Foreign] New ERC721 token native image has been deployed: ', foreignNativeTokenImageERC721)
@@ -38,7 +41,7 @@ async function deployFactory() {
     console.log('\n[Home] Deploying new ERC721 bridge token image')
     const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
       network: 'home',
-      nonce: nonceHome++,
+      nonce: nonceFactoryHome++,
     })
     homeBridgeTokenImageERC721 = bridgeImage.options.address
     console.log('\n[Home] New ERC721 token bridge image has been deployed: ', homeBridgeTokenImageERC721)
@@ -56,7 +59,7 @@ async function deployFactory() {
     console.log('\n[Foreign] Deploying new ERC721 bridge token image')
     const bridgeImage = await deployContractByFactoryDeploymentAccount(ERC721BridgeToken, ['', '', ZERO_ADDRESS], {
       network: 'foreign',
-      nonce: nonceForeign++,
+      nonce: nonceFactoryForeign++,
     })
     foreignBridgeTokenImageERC721 = bridgeImage.options.address
     console.log('\n[Foreign] New ERC721 token bridge image has been deployed: ', foreignBridgeTokenImageERC721)
@@ -69,7 +72,7 @@ async function deployFactory() {
     console.log('\n[Home] Deploying new ERC721 native token image')
     const nativeImage = await deployContractByFactoryDeploymentAccount(ERC721NativeToken, ['', ''], {
       network: 'home',
-      nonce: nonceHome++,
+      nonce: nonceFactoryHome++,
     })
     homeNativeTokenImageERC721 = nativeImage.options.address
     console.log('\n[Home] New ERC721 token native image has been deployed: ', homeNativeTokenImageERC721)
@@ -84,34 +87,64 @@ async function deployFactory() {
   // 3
   let foreignTokenFactory = ERC721_TOKEN_FACTORY
   if (!foreignTokenFactory) {
-    console.log('\n[Foreign] Deploying new ERC721 token factory')
-    const factory = await deployContractByFactoryDeploymentAccount(
-      ERC721TokenFactory,
-      [foreignBridgeTokenImageERC721, foreignNativeTokenImageERC721],
-      {
-        network: 'foreign',
-        nonce: nonceForeign++,
-      }
+    console.log('\n[Foreign] Deploying ERC721 token factory storage\n')
+    const foreignERC721TokenFactoryStorage = await deployContractByFactoryDeploymentAccount(EternalStorageProxy, [], {
+      network: 'foreign',
+      nonce: nonceFactoryForeign++,
+    })
+    console.log('[Foreign] ERC721 token factory Storage: ', foreignERC721TokenFactoryStorage.options.address)
+
+    console.log('\n[Foreign] Deploying ERC721 token factory implementation')
+    const foreignERC721TokenFactoryImplementation = await deployContract(ERC721TokenFactory, [], {
+      network: 'foreign',
+      nonce: nonceForeign++,
+    })
+    console.log(
+      '[Foreign] ERC721 token factory Implementation: ',
+      foreignERC721TokenFactoryImplementation.options.address
     )
-    foreignTokenFactory = factory.options.address
-    console.log('\n[Foreign] New ERC721 token factory has been deployed: ', foreignTokenFactory)
+
+    console.log('\n[Foreign] Hooking up ERC721 Token Factory storage to ERC721 Token Factory implementation')
+    await upgradeProxy({
+      network: 'foreign',
+      proxy: foreignERC721TokenFactoryStorage,
+      implementationAddress: foreignERC721TokenFactoryImplementation.options.address,
+      version: '1',
+      nonce: nonceFactoryForeign++,
+      privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
+    })
+
+    foreignTokenFactory = foreignERC721TokenFactoryStorage.options.address
   } else {
     console.log('\n[Foreign] Using existing ERC721 token factory: ', foreignTokenFactory)
   }
 
   let homeTokenFactory = ERC721_TOKEN_FACTORY
   if (!homeTokenFactory) {
-    console.log('\n[Home] Deploying new ERC721 token factory')
-    const factory = await deployContractByFactoryDeploymentAccount(
-      ERC721TokenFactory,
-      [homeBridgeTokenImageERC721, homeNativeTokenImageERC721],
-      {
-        network: 'home',
-        nonce: nonceHome++,
-      }
-    )
-    homeTokenFactory = factory.options.address
-    console.log('\n[Home] New ERC721 token factory has been deployed: ', homeTokenFactory)
+    console.log('\n[Home] Deploying ERC721 token factory storage\n')
+    const homeERC721TokenFactoryStorage = await deployContractByFactoryDeploymentAccount(EternalStorageProxy, [], {
+      network: 'home',
+      nonce: nonceFactoryHome++,
+    })
+    console.log('[Home] ERC721 token factory Storage: ', homeERC721TokenFactoryStorage.options.address)
+
+    console.log('\n[Home] Deploying ERC721 token factory implementation')
+    const homeERC721TokenFactoryImplementation = await deployContract(ERC721TokenFactory, [], {
+      network: 'home',
+      nonce: nonceHome++,
+    })
+    console.log('[Home] ERC721 token factory Implementation: ', homeERC721TokenFactoryImplementation.options.address)
+
+    console.log('\n[Home] Hooking up ERC721 Token Factory storage to ERC721 Token Factory implementation')
+    await upgradeProxy({
+      network: 'home',
+      proxy: homeERC721TokenFactoryStorage,
+      implementationAddress: homeERC721TokenFactoryImplementation.options.address,
+      version: '1',
+      nonce: nonceFactoryHome++,
+      privateKey: DEPLOYMENT_FACTORY_ACCOUNT_PRIVATE_KEY,
+    })
+    homeTokenFactory = homeERC721TokenFactoryStorage.options.address
   } else {
     console.log('\n[Home] Using existing ERC721 token factory: ', homeTokenFactory)
   }
