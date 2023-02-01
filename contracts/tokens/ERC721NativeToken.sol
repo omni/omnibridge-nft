@@ -1,14 +1,19 @@
 pragma solidity 0.7.5;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+
 import "../interfaces/IOwnable.sol";
 
 contract ERC721NativeToken is ERC721 {
+    using Counters for Counters.Counter;
+
     address private bridgeContract;
     address private _factory;
     uint256 private _id;
     address private _owner;
-    
+    Counters.Counter private _tokenIdCounter;
+
     constructor(
         string memory _name,
         string memory _symbol
@@ -42,7 +47,10 @@ contract ERC721NativeToken is ERC721 {
         return _factory;
     }
 
-    function mint(address _to, uint256 _tokenId, string memory _uri) external onlyOwner {
+    function mint(address _to, string memory _uri) external onlyOwner {
+        _tokenIdCounter.increment();
+        uint256 _tokenId = _tokenIdCounter.current();
+
         _safeMint(_to, _tokenId);
         _setTokenURI(_tokenId, _uri);
     }

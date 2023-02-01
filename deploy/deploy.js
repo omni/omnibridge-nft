@@ -24,7 +24,15 @@ async function deployOmnibridgeNFT() {
   } = require('./src/omnibridge_nft/initializeFactory')
 
   await preDeploy()
-  const { foreignTokenFactory, homeTokenFactory } = await deployFactory()
+  const {
+    foreignNativeTokenImageERC721,
+    homeBridgeTokenImageERC721,
+    foreignBridgeTokenImageERC721,
+    homeNativeTokenImageERC721,
+    foreignTokenFactory,
+    homeTokenFactory,
+  } = await deployFactory()
+
   const {
     homeBridgeMediator,
     tokenImageERC1155: homeTokenImageERC1155,
@@ -53,12 +61,16 @@ async function deployOmnibridgeNFT() {
     factory: foreignTokenFactory.address,
     bridge: foreignBridgeMediator.address,
     oppositeBridge: homeBridgeMediator.address,
+    erc721BridgeImage: foreignBridgeTokenImageERC721.address,
+    erc721NativeImage: foreignNativeTokenImageERC721.address,
   })
 
   await initializeTokenFactoryHome({
     factory: homeTokenFactory.address,
     bridge: homeBridgeMediator.address,
     oppositeBridge: foreignBridgeMediator.address,
+    erc721BridgeImage: homeBridgeTokenImageERC721.address,
+    erc721NativeImage: homeNativeTokenImageERC721.address,
   })
 
   console.log('\nDeployment has been completed.\n\n')
