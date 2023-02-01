@@ -1,6 +1,8 @@
 pragma solidity 0.7.5;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+
 import "../interfaces/IOwnable.sol";
 import "../interfaces/IBurnableMintableERC721Token.sol";
 
@@ -9,10 +11,13 @@ import "../interfaces/IBurnableMintableERC721Token.sol";
  * @dev template token contract for bridged ERC721 tokens.
  */
 contract ERC721BridgeToken is ERC721, IBurnableMintableERC721Token {
+    using Counters for Counters.Counter;
+
     address public bridgeContract;
     address public _factory;
     uint256 private _id;
     address private _owner;
+    Counters.Counter private _tokenIdCounter;
 
     constructor(
         string memory _name,
