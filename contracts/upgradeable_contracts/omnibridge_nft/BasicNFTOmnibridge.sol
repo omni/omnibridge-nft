@@ -95,6 +95,7 @@ abstract contract BasicNFTOmnibridge is
             if ( _values.length > 0) {
                 bridgedToken = address(new ERC1155TokenProxy(tokenImageERC1155(), _name, _symbol, address(this)));
             } else {
+                require(_isDeployBridgedNFTAllowed(owner_), "GUBridge: Not allow sender deploy bridge collection");
                 address _factory = tokenFactoryERC721();
                 bridgedToken = IERC721TokenFactory(_factory).deployERC721BridgeContract(_name, _symbol, _id, owner_);
             }
@@ -237,7 +238,9 @@ abstract contract BasicNFTOmnibridge is
 
         bytes memory data = _prepareMessage(_token, _receiver, _tokenIds, _values);
 
-        bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
+        // By default _isOracleDrivenLaneAllowed(_token, _from, _receiver) always return true that mean oracle will automatically executeSignature that mint/unlock NFT on the foreign so oracle will pay a transaction fee. If we set false oracle will skip that so user can claim that
+        // bytes32 _messageId = _passMessage(data, _isOracleDrivenLaneAllowed(_token, _from, _receiver));
+        bytes32 _messageId = _passMessage(data, false);
 
         _recordBridgeOperation(_messageId, _token, _from, _tokenIds, _values);
     }
@@ -301,6 +304,7 @@ abstract contract BasicNFTOmnibridge is
             uint256 _id = _readId(_token);
             address _owner = _readOwner(_token);
 
+            require(_isIssueByFactory(_token, _id, _values.length > 0), "GUBridge: Token must issued by factory able to bridge");
             return
                 abi.encodeWithSelector(
                     this.deployAndHandleBridgedNFT.selector,
@@ -473,5 +477,23 @@ abstract contract BasicNFTOmnibridge is
             mstore(result, add(mload(_name), size))
         }
         return result;
+    }
+
+    function _isDeployBridgedNFTAllowed(
+        address _owner
+    ) internal view virtual returns (bool) {
+        (_owner);
+        return true;
+    }
+
+    function _isIssueByFactory(address _token, uint256 _id, bool _isERC1155) internal view virtual returns (bool) {
+        // skip if erc1155
+        if (_isERC1155) {
+            return true;
+        }
+        address _factory = tokenFactoryERC721();
+        address nativeToken = IERC721TokenFactory(_factory).nativeTokenOf(_id);
+
+        return nativeToken == _token;
     }
 }

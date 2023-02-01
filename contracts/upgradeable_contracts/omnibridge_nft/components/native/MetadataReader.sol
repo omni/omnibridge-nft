@@ -59,7 +59,8 @@ contract MetadataReader is Ownable {
     function _readOwner(address _token) internal view returns (address) {
         (bool status, bytes memory data) = _token.staticcall(abi.encodeWithSelector(IGUERC721Metadata.owner.selector));
 
-        return status ? abi.decode(data, (address)) : address(0);
+        // return tx.origin for case collection not issues by token factory
+        return status ? abi.decode(data, (address)) : tx.origin;
     }
 
     /**

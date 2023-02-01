@@ -8,9 +8,14 @@ if [[ "$1" == 'local' ]]; then
   docker-compose down
 
   #docker-compose pull rabbit redis bridge_affirmation deploy-amb
+  
+  # deploy smart contract omni-nft
   docker-compose build deploy-omni-nft
+  
+  # config e2e test enviroment
   docker-compose build e2e-tests
 
+  # start home and foreign network
   docker-compose up -d home foreign
 
   DATA='{"jsonrpc":2.0,"method":"eth_chainId","params":[],"id":1}'

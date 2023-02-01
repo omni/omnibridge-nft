@@ -3,7 +3,9 @@ const ForeignNFTOmnibridge = artifacts.require('ForeignNFTOmnibridge')
 const EternalStorageProxy = artifacts.require('EternalStorageProxy')
 const AMBMock = artifacts.require('AMBMock')
 const ERC721BridgeToken = artifacts.require('ERC721BridgeToken')
+const ERC721NativeToken = artifacts.require('ERC721NativeToken')
 const ERC721TokenProxy = artifacts.require('ERC721TokenProxy')
+const ERC721TokenFactory = artifacts.require('ERC721TokenFactory')
 const ERC1155BridgeToken = artifacts.require('ERC1155BridgeToken')
 const ERC1155TokenProxy = artifacts.require('ERC1155TokenProxy')
 const ERC1155ReceiverMock = artifacts.require('ERC1155ReceiverMock')
@@ -12,7 +14,7 @@ const NFTForwardingRulesManager = artifacts.require('NFTForwardingRulesManager')
 const SelectorTokenGasLimitManager = artifacts.require('SelectorTokenGasLimitManager')
 const OwnedUpgradeabilityProxy = artifacts.require('OwnedUpgradeabilityProxy')
 const selectors = {
-  deployAndHandleBridgedNFT: '0xf92d7468',
+  deployAndHandleBridgedNFT: '0xd376e39a',
   handleBridgedNFT: '0xb701e094',
   handleNativeNFT: '0x6ca48357',
   fixFailedMessage: '0x276fea8a',
@@ -30,7 +32,6 @@ const failedMessageId = '0x2ebc2ccc755acc8eaf9252e19573af708d644ab63a39619adb080
 function runTests(accounts, isHome) {
   const Mediator = isHome ? HomeNFTOmnibridge : ForeignNFTOmnibridge
   const SUFFIX = ' on Testnet'
-  const modifyName = (name) => name + SUFFIX
   const uriFor = (tokenId) => `https://example.com/${tokenId}`
   const otherSideMediator = '0x1e33FBB006F47F78704c954555a5c52C2A7f409D'
   const otherSideToken1 = '0xAfb77d544aFc1e2aD3dEEAa20F3c80859E7Fc3C9'
@@ -39,17 +40,19 @@ function runTests(accounts, isHome) {
   let contract
   let token
   let ambBridgeContract
-  let tokenImageERC721
+  let tokenBridgeImageERC721
+  let tokenNativeImageERC721
+  let tokenFactoryERC721
   let tokenImageERC1155
   const owner = accounts[0]
   const user = accounts[1]
   const user2 = accounts[2]
+  const user3 = accounts[3]
 
   const mintNewERC721 = (() => {
     let tokenId = 100
     return async () => {
-      await token.mint(user, tokenId)
-      await token.setTokenURI(tokenId, uriFor(tokenId))
+      await token.mint(user, tokenId, uriFor(tokenId))
       return tokenId++
     }
   })()
@@ -73,7 +76,9 @@ function runTests(accounts, isHome) {
         opts.receiver || user,
         [opts.tokenId],
         [],
-        [uriFor(opts.tokenId)]
+        [uriFor(opts.tokenId)],
+        opts.id || 0,
+        opts.owner || owner
       )
       .encodeABI()
   }
@@ -115,7 +120,9 @@ function runTests(accounts, isHome) {
         opts.receiver || user,
         opts.tokenIds,
         opts.values,
-        opts.tokenIds.map(uriFor)
+        opts.tokenIds.map(uriFor),
+        opts.id || 0,
+        opts.owner || owner
       )
       .encodeABI()
   }
@@ -166,12 +173,14 @@ function runTests(accounts, isHome) {
       opts.otherSideMediator || otherSideMediator,
       isHome ? opts.gasLimitManager || ZERO_ADDRESS : opts.requestGasLimit || 1000000,
       opts.owner || owner,
-      opts.tokenImageERC721 || tokenImageERC721.address,
       opts.tokenImageERC1155 || tokenImageERC1155.address,
     ]
     if (isHome) {
       args.push(opts.forwardingRulesManager || ZERO_ADDRESS)
     }
+
+    args.push(opts.tokenFactoryERC721 || tokenFactoryERC721.address)
+
     return contract.initialize(...args)
   }
 
@@ -211,15 +220,28 @@ function runTests(accounts, isHome) {
     },
   ]
 
+  async function deployERC721NativeToken() {
+    await tokenFactoryERC721.deployERC721NativeContract('TEST', 'TST')
+    const event = await getEvents(tokenFactoryERC721, { event: 'ERC721NativeContractCreated' })
+    // eslint-disable-next-line no-underscore-dangle
+    const collection = event[event.length - 1].returnValues._collection
+
+    return ERC721NativeToken.at(collection)
+  }
+
   before(async () => {
-    tokenImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
+    tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner)
+    tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST')
     tokenImageERC1155 = await ERC1155BridgeToken.new('TEST', 'TST', owner)
+    tokenFactoryERC721 = await ERC721TokenFactory.new(tokenBridgeImageERC721.address, tokenNativeImageERC721.address)
   })
 
   beforeEach(async () => {
     contract = await Mediator.new(SUFFIX)
     ambBridgeContract = await AMBMock.new()
-    token = await ERC721BridgeToken.new('TEST', 'TST', owner)
+    await tokenFactoryERC721.setBridge(contract.address)
+    await tokenFactoryERC721.setOppositeBridge(contract.address)
+    token = await deployERC721NativeToken()
   })
 
   describe('getBridgeMode', () => {
@@ -241,7 +263,6 @@ function runTests(accounts, isHome) {
       expect(await contract.bridgeContract()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.mediatorContractOnOtherSide()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.owner()).to.be.equal(ZERO_ADDRESS)
-      expect(await contract.tokenImageERC721()).to.be.equal(ZERO_ADDRESS)
       expect(await contract.tokenImageERC1155()).to.be.equal(ZERO_ADDRESS)
 
       // When
@@ -263,7 +284,7 @@ function runTests(accounts, isHome) {
       await initialize({ owner: ZERO_ADDRESS }).should.be.rejected
 
       // token factory is not a contract
-      await initialize({ tokenImageERC721: owner }).should.be.rejected
+      await initialize({ tokenFactoryERC721: owner }).should.be.rejected
       await initialize({ tokenImageERC1155: owner }).should.be.rejected
 
       await initialize().should.be.fulfilled
@@ -281,7 +302,6 @@ function runTests(accounts, isHome) {
         expect(await contract.requestGasLimit()).to.be.bignumber.equal('1000000')
       }
       expect(await contract.owner()).to.be.equal(owner)
-      expect(await contract.tokenImageERC721()).to.be.equal(tokenImageERC721.address)
       expect(await contract.tokenImageERC1155()).to.be.equal(tokenImageERC1155.address)
     })
   })
@@ -561,11 +581,26 @@ function runTests(accounts, isHome) {
               for (let i = 0; i < 2; i++) {
                 const { data, dataType, executor } = events[i].returnValues
                 expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
+
                 const args = web3.eth.abi.decodeParameters(
-                  ['address', 'string', 'string', 'address', 'uint256[]', 'uint256[]', 'string[]'],
+                  [
+                    'address',
+                    'string',
+                    'string',
+                    'address',
+                    'uint256[]',
+                    'uint256[]',
+                    'string[]',
+                    'uint256',
+                    'address',
+                  ],
                   data.slice(10)
                 )
-                expect(dataType).to.be.equal('0')
+                if (isHome) {
+                  expect(dataType).to.be.equal('128') // x80 - MANUAL LANE
+                } else {
+                  expect(dataType).to.be.equal('0') // x00 - ORACLE LANE
+                }
                 expect(executor).to.be.equal(otherSideMediator)
                 expect(args[0]).to.be.equal(token.address)
                 expect(args[1]).to.be.equal(await token.name())
@@ -578,7 +613,11 @@ function runTests(accounts, isHome) {
               }
 
               const { data, dataType } = events[2].returnValues
-              expect(dataType).to.be.equal('0')
+              if (isHome) {
+                expect(dataType).to.be.equal('128') // x80 - MANUAL LANE
+              } else {
+                expect(dataType).to.be.equal('0') // x00 - ORACLE LANE
+              }
               expect(data.slice(0, 10)).to.be.equal(selectors.handleBridgedNFT)
               const args = web3.eth.abi.decodeParameters(
                 ['address', 'address', 'uint256[]', 'uint256[]', 'string[]'],
@@ -609,21 +648,11 @@ function runTests(accounts, isHome) {
             })
           }
 
-          it('should relay tokens with missing metadata', async () => {
-            const token = await NFTWithoutMetadata.new()
+          it('should not relay tokens not belong to token factory', async () => {
+            const token = await ERC721BridgeToken.new('TEST', 'TST', owner)
 
             const transfer = token.methods['safeTransferFrom(address,address,uint256,bytes)']
-            await transfer(owner, contract.address, 1, '0x').should.be.fulfilled
-
-            const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
-            expect(events.length).to.be.equal(1)
-
-            const { data } = events[0].returnValues
-            expect(data.slice(0, 10)).to.be.equal(selectors.deployAndHandleBridgedNFT)
-            const args = web3.eth.abi.decodeParameters(['address', 'string', 'string'], data.slice(10))
-            expect(args[0]).to.be.equal(token.address)
-            expect(args[1]).to.be.equal('')
-            expect(args[2]).to.be.equal('')
+            await transfer(owner, contract.address, 1, '0x').should.be.rejected
           })
 
           it('should respect global bridging restrictions', async () => {
@@ -969,8 +998,16 @@ function runTests(accounts, isHome) {
               expect(args2[2]).to.be.eql(['2'])
               expect(args2[3]).to.be.eql([])
 
-              expect(dataType).to.be.equal('0')
-              expect(dataType2).to.be.equal('0')
+              if (isHome) {
+                expect(dataType).to.be.equal('128') // x80 - MANUAL LANE
+              } else {
+                expect(dataType).to.be.equal('0') // x00 - ORACLE LANE
+              }
+              if (isHome) {
+                expect(dataType2).to.be.equal('128') // x80 - MANUAL LANE
+              } else {
+                expect(dataType2).to.be.equal('0') // x00 - ORACLE LANE
+              }
               expect(await contract.isTokenRegistered(token.address)).to.be.equal(true)
               expect(await token.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
 
@@ -1098,7 +1135,7 @@ function runTests(accounts, isHome) {
             const deployedToken = await ERC721BridgeToken.at(bridgedToken)
             const deployedTokenProxy = await ERC721TokenProxy.at(bridgedToken)
 
-            expect(await deployedToken.name()).to.be.equal(modifyName('Test'))
+            expect(await deployedToken.name()).to.be.equal('Test')
             const v1 = await deployedToken.getTokenInterfacesVersion()
             const v2 = await deployedTokenProxy.getTokenProxyInterfacesVersion()
             expect(v1.major).to.be.bignumber.gte(ZERO)
@@ -1133,42 +1170,6 @@ function runTests(accounts, isHome) {
             expect(event.length).to.be.equal(2)
           })
 
-          it('should use modified symbol instead of name if empty', async () => {
-            const data = deployAndHandleBridgedERC721({ tokenId: 1, name: '' })
-
-            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
-
-            const deployedToken = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
-            expect(await deployedToken.name()).to.be.equal(modifyName('TST'))
-            expect(await deployedToken.symbol()).to.be.equal('TST')
-          })
-
-          it('should use modified name instead of symbol if empty', async () => {
-            const data = deployAndHandleBridgedERC721({ tokenId: 1, symbol: '' })
-
-            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
-
-            const deployedToken = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
-            expect(await deployedToken.name()).to.be.equal(modifyName('Test'))
-            expect(await deployedToken.symbol()).to.be.equal('Test')
-          })
-
-          it('should use default name, which can be reset later', async () => {
-            const data = deployAndHandleBridgedERC721({ tokenId: 1, name: '', symbol: '' })
-
-            expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
-
-            const deployedToken = await ERC721BridgeToken.at(await contract.bridgedTokenAddress(otherSideToken1))
-            expect(await deployedToken.name()).to.be.equal('')
-            expect(await deployedToken.symbol()).to.be.equal('')
-
-            await deployedToken.setMetadata('newName', 'newSymbol', { from: user }).should.be.rejected
-            await deployedToken.setMetadata('newName', 'newSymbol', { from: owner }).should.be.fulfilled
-
-            expect(await deployedToken.name()).to.be.equal('newName')
-            expect(await deployedToken.symbol()).to.be.equal('newSymbol')
-          })
-
           it('should not allow to operate when execution is disabled globally', async () => {
             const data = deployAndHandleBridgedERC721({ tokenId: 1 })
 
@@ -1179,6 +1180,148 @@ function runTests(accounts, isHome) {
             await contract.disableTokenExecution(ZERO_ADDRESS, false).should.be.fulfilled
 
             expect(await executeMessageCall(otherMessageId, data)).to.be.equal(true)
+          })
+
+          it('Should deploy new bridge token same address with the source address', async () => {
+            // Prepare message from source chain transaction must same nonce
+            // Must be deploy same address token factory with CREATE opcodes => need to new user
+            // WARNING: don't remove comment, it's code prepare for source chain data
+
+            // const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner, { from: user3 })
+            // expect(tokenBridgeImageERC721.address).to.eql('0x9Ad61E35f8309aF944136283157FABCc5AD371E5')
+            // const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST', { from: user3 })
+            // expect(tokenNativeImageERC721.address).to.eql('0xc0bAC7B9a8c62778bBBad8BB859FDb8E9eA6203A')
+
+            // const tokenFactoryERC721 = await ERC721TokenFactory.new(
+            //   tokenBridgeImageERC721.address,
+            //   tokenNativeImageERC721.address,
+            //   {
+            //     from: user3,
+            //   }
+            // )
+            // expect(tokenFactoryERC721.address).to.eql('0x47115d34326e88AAD58066d8E4d033676fC1aBAe')
+            // const bridge = '0x32cF26d114e5cCEc96B0666185d72a2F32D6A685'
+            // const oppositeBridge = await Mediator.new(SUFFIX, { from: user3 })
+            // expect(oppositeBridge.address).to.eql('0x32cF26d114e5cCEc96B0666185d72a2F32D6A685')
+            // await tokenFactoryERC721.transferOwnership(owner, { from: user3 })
+            // await tokenFactoryERC721.setBridge(bridge)
+            // await tokenFactoryERC721.setOppositeBridge(oppositeBridge.address)
+            // await tokenFactoryERC721.deployERC721NativeContract('TEST', 'TST')
+            // const event = await getEvents(tokenFactoryERC721, { event: 'ERC721NativeContractCreated' })
+            // expect(event.length).to.be.equal(1)
+            // // eslint-disable-next-line no-underscore-dangle
+            // const erc721NativeTokenAddress = event[0].returnValues._collection
+            // expect(erc721NativeTokenAddress).to.eql('0x09b10De1FC384E08e11a7f2352ece78Df30F9bde')
+            // Execute at opposite chain
+            const computeCreate2AddrSourceChain = '0x09b10De1FC384E08e11a7f2352ece78Df30F9bde'
+            // CREATE opcode same address
+            const tokenNativeImageERC721 = await ERC721NativeToken.new('TEST', 'TST', { from: user3 })
+            expect(tokenNativeImageERC721.address).to.eql('0x9Ad61E35f8309aF944136283157FABCc5AD371E5')
+            const tokenBridgeImageERC721 = await ERC721BridgeToken.new('TEST', 'TST', owner, { from: user3 })
+            expect(tokenBridgeImageERC721.address).to.eql('0xc0bAC7B9a8c62778bBBad8BB859FDb8E9eA6203A')
+
+            const tokenFactoryERC721 = await ERC721TokenFactory.new(
+              tokenBridgeImageERC721.address,
+              tokenNativeImageERC721.address,
+              {
+                from: user3,
+              }
+            )
+            expect(tokenFactoryERC721.address).to.eql('0x47115d34326e88AAD58066d8E4d033676fC1aBAe')
+
+            const oppositeBridge = '0x32cF26d114e5cCEc96B0666185d72a2F32D6A685'
+            const bridge = await Mediator.new(SUFFIX, { from: user3 })
+            expect(bridge.address).to.eql('0x32cF26d114e5cCEc96B0666185d72a2F32D6A685')
+
+            await tokenFactoryERC721.transferOwnership(owner, { from: user3 })
+            await tokenFactoryERC721.setBridge(bridge.address)
+            await tokenFactoryERC721.setOppositeBridge(oppositeBridge)
+
+            if (isHome) {
+              await bridge.initialize(
+                ambBridgeContract.address,
+                otherSideMediator,
+                ZERO_ADDRESS,
+                owner,
+                tokenImageERC1155.address,
+                ZERO_ADDRESS,
+                tokenFactoryERC721.address
+              ).should.be.fulfilled
+            } else {
+              await bridge.initialize(
+                ambBridgeContract.address,
+                otherSideMediator,
+                1000000,
+                owner,
+                tokenImageERC1155.address,
+                tokenFactoryERC721.address
+              ).should.be.fulfilled
+            }
+            const data = bridge.contract.methods
+              .deployAndHandleBridgedNFT(
+                computeCreate2AddrSourceChain,
+                'TEST',
+                'TST',
+                user,
+                [1],
+                [],
+                [uriFor(1)],
+                0,
+                owner
+              )
+              .encodeABI()
+            // execute message
+            expect(await executeMessageCall(exampleMessageId, data, { executor: bridge.address })).to.be.equal(true)
+            const events = await getEvents(bridge, { event: 'NewTokenRegistered' })
+            expect(events.length).to.be.equal(1)
+            const { nativeToken, bridgedToken } = events[0].returnValues
+            expect(nativeToken).to.eql(computeCreate2AddrSourceChain)
+            expect(bridgedToken).to.eql(computeCreate2AddrSourceChain)
+          })
+
+          it('should allow owner of source contract deploy ERC721 bridge contract', async () => {
+            if (!isHome) {
+              const data = deployAndHandleBridgedERC721({
+                tokenId: 1,
+              })
+              expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(true)
+              const events = await getEvents(contract, { event: 'NewTokenRegistered' })
+              expect(events.length).to.be.equal(1)
+              const { nativeToken, bridgedToken } = events[0].returnValues
+              expect(nativeToken).to.be.equal(otherSideToken1)
+              const deployedToken = await ERC721BridgeToken.at(bridgedToken)
+              const deployedTokenProxy = await ERC721TokenProxy.at(bridgedToken)
+
+              expect(await deployedToken.name()).to.be.equal('Test')
+              const v1 = await deployedToken.getTokenInterfacesVersion()
+              const v2 = await deployedTokenProxy.getTokenProxyInterfacesVersion()
+              expect(v1.major).to.be.bignumber.gte(ZERO)
+              expect(v2.major).to.be.bignumber.gte(ZERO)
+              expect(await deployedToken.symbol()).to.be.equal('TST')
+              expect(await contract.nativeTokenAddress(bridgedToken)).to.be.equal(nativeToken)
+              expect(await contract.bridgedTokenAddress(nativeToken)).to.be.equal(bridgedToken)
+              expect(await deployedToken.ownerOf(1)).to.be.bignumber.equal(user)
+              expect(await deployedToken.balanceOf(contract.address)).to.be.bignumber.equal(ZERO)
+              expect(await deployedToken.tokenURI(1)).to.be.equal(uriFor(1))
+
+              const event = await getEvents(contract, { event: 'TokensBridged' })
+              expect(event.length).to.be.equal(1)
+              expect(event[0].returnValues.token).to.be.equal(deployedToken.address)
+              expect(event[0].returnValues.recipient).to.be.equal(user)
+              expect(event[0].returnValues.tokenIds).to.be.eql(['1'])
+              expect(event[0].returnValues.values).to.be.eql([])
+              expect(event[0].returnValues.messageId).to.be.equal(exampleMessageId)
+            }
+          })
+
+          it("shouldn't allow owner of source contract deploy ERC721 bridge contract", async () => {
+            if (!isHome) {
+              const data = deployAndHandleBridgedERC721({
+                tokenId: 1,
+                owner: user,
+              })
+              expect(await executeMessageCall(exampleMessageId, data)).to.be.equal(false)
+            }
           })
         })
 
@@ -1348,7 +1491,11 @@ function runTests(accounts, isHome) {
 
             for (let i = 0; i < 8; i++) {
               const { data, dataType, executor } = events[i].returnValues
-              expect(dataType).to.be.equal('0')
+              if (isHome) {
+                expect(dataType).to.be.equal('128') // x80 - MANUAL LANE
+              } else {
+                expect(dataType).to.be.equal('0') // x00 - ORACLE LANE
+              }
               expect(executor).to.be.equal(otherSideMediator)
 
               if (i < 4) {
@@ -1621,7 +1768,11 @@ function runTests(accounts, isHome) {
 
             for (let i = 0; i < 4; i++) {
               const { data, dataType, executor } = events[i].returnValues
-              expect(dataType).to.be.equal('0')
+              if (isHome) {
+                expect(dataType).to.be.equal('128') // x80 - MANUAL LANE
+              } else {
+                expect(dataType).to.be.equal('0') // x00 - ORACLE LANE
+              }
               expect(data.slice(0, 10)).to.be.equal(selectors.handleNativeNFT)
               const args = web3.eth.abi.decodeParameters(
                 ['address', 'address', 'uint256[]', 'uint256[]'],
@@ -1710,7 +1861,7 @@ function runTests(accounts, isHome) {
             const deployedToken = await ERC1155BridgeToken.at(bridgedToken)
             const deployedTokenProxy = await ERC1155TokenProxy.at(bridgedToken)
 
-            expect(await deployedToken.name()).to.be.equal(modifyName('Test'))
+            expect(await deployedToken.name()).to.be.equal('Test')
             expect(await deployedToken.symbol()).to.be.equal('TST')
             const v1 = await deployedToken.getTokenInterfacesVersion()
             const v2 = await deployedTokenProxy.getTokenProxyInterfacesVersion()
@@ -1899,9 +2050,11 @@ function runTests(accounts, isHome) {
 
           const events = await getEvents(ambBridgeContract, { event: 'MockedEvent' })
           expect(events.length).to.be.equal(3)
-          expect(events[0].returnValues.dataType).to.be.bignumber.equal('0')
+
+          // Now only manual lane support
+          expect(events[0].returnValues.dataType).to.be.bignumber.equal('128')
           expect(events[1].returnValues.dataType).to.be.bignumber.equal('128')
-          expect(events[2].returnValues.dataType).to.be.bignumber.equal('0')
+          expect(events[2].returnValues.dataType).to.be.bignumber.equal('128')
         })
       })
     }

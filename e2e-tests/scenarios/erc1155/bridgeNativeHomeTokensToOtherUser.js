@@ -8,7 +8,7 @@ async function run({ foreign, home, users }) {
 
   console.log('Sending token to the Home Mediator')
   const receipt1 = await home.relayTokenERC1155(erc1155Token, id, { to: users[1] })
-  const relayTxHash1 = await foreign.waitUntilProcessed(receipt1)
+  const relayTxHash1 = await foreign.executeManually(receipt1)
   const bridgedToken = await foreign.getBridgedTokenERC1155(erc1155Token)
 
   await foreign.checkTransferERC1155(relayTxHash1, bridgedToken, ZERO_ADDRESS, users[1], id)
